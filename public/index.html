@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Encontre jogadores de Magic perto de você para comprar, vender e trocar cartas.">
+  <title>ManaPonte — Magic mais perto</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="nav"><a class="brand" href="#">Mana<span>Ponte</span></a><nav><a href="#ofertas">Ofertas</a><a href="#como">Como funciona</a></nav><button class="button compact" id="openModal">Anunciar carta</button></header>
+  <main>
+    <section class="hero">
+      <div><p class="eyebrow">A comunidade é o melhor marketplace</p><h1>A carta que falta pode estar <em>na mesa ao lado.</em></h1><p class="lead">Descubra quem tem o que você procura, filtre por região e combine a troca diretamente com outro jogador.</p></div>
+      <form id="searchForm" class="search"><label><span>Qual carta?</span><input id="search" placeholder="Ex.: Sol Ring" autocomplete="off"></label><label><span>Coleção</span><select id="set"><option value="">Todas</option></select></label><label><span>UF</span><select id="state"><option value="">Brasil</option><option>RN</option><option>CE</option><option>PE</option><option>PB</option></select></label><button class="button">Encontrar</button></form>
+    </section>
+    <section id="ofertas" class="section"><div class="section-head"><div><p class="eyebrow">Vitrine da comunidade</p><h2>Ofertas perto de você</h2></div><div class="chips"><button class="chip active" data-mode="">Todos</button><button class="chip" data-mode="venda">Venda</button><button class="chip" data-mode="troca">Troca</button></div></div><p id="status" class="status">Carregando ofertas…</p><div id="listings" class="grid"></div></section>
+    <section id="como" class="section how"><p class="eyebrow">Simples e direto</p><h2>Da busca ao shuffle em três passos</h2><div class="steps"><article><b>01</b><h3>Cadastre</h3><p>Escolha a impressão exata no catálogo Scryfall.</p></article><article><b>02</b><h3>Filtre</h3><p>Encontre cartas, modalidades e jogadores por região.</p></article><article><b>03</b><h3>Combine</h3><p>Converse diretamente e negocie com segurança.</p></article></div></section>
+  </main>
+  <footer><strong>ManaPonte</strong><span>Protótipo comunitário de Magic: The Gathering</span><span>Dados e imagens: Scryfall</span></footer>
+  <dialog id="modal"><form id="listingForm"><div class="modal-head"><div><p class="eyebrow">Nova oferta</p><h2>Anunciar carta</h2></div><button type="button" class="close" id="closeModal" aria-label="Fechar">×</button></div><label>Carta<select name="card_id" id="cardSelect" required></select></label><div class="two"><label>Modalidade<select name="mode"><option value="venda">Venda</option><option value="troca">Troca</option><option value="ambos">Venda ou troca</option></select></label><label>Condição<select name="condition"><option>NM</option><option>SP</option><option>MP</option><option>HP</option><option>DMG</option></select></label></div><label>Título<input name="title" minlength="3" maxlength="120" required placeholder="Descreva sua oferta"></label><label>Preço em reais<input name="price" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Descrição<textarea name="description" maxlength="1000" rows="3"></textarea></label><p class="notice">Protótipo: o anúncio será vinculado ao usuário de demonstração. Autenticação entra na próxima fase.</p><button class="button" type="submit">Publicar oferta</button><p id="formStatus" class="status"></p></form></dialog>
+  <script src="/app.js" defer></script>
+</body></html>
