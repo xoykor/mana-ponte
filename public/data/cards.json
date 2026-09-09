@@ -1,0 +1,14 @@
+{"cards":[
+{"id":1,"name":"Black Lotus","set_code":"lea","set_name":"Limited Edition Alpha","collector_number":"232","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/b/0/b0faa7f2-b547-42c4-a810-839da50dadfe.jpg"},
+{"id":2,"name":"Sol Ring","set_code":"cmm","set_name":"Commander Masters","collector_number":"410","language":"en","rarity":"uncommon","image_url":"https://cards.scryfall.io/normal/front/4/6/46ca0b66-a000-4483-b916-f5b89e710244.jpg"},
+{"id":3,"name":"Lightning Bolt","set_code":"m11","set_name":"Magic 2011","collector_number":"149","language":"en","rarity":"common","image_url":"https://cards.scryfall.io/normal/front/e/7/e768c957-3a1f-42f5-853a-96942f645df5.jpg"},
+{"id":4,"name":"Counterspell","set_code":"mh2","set_name":"Modern Horizons 2","collector_number":"267","language":"en","rarity":"uncommon","image_url":"https://cards.scryfall.io/normal/front/1/9/1920dae4-fb92-4f19-ae4b-eb3276b8dac7.jpg"},
+{"id":5,"name":"Llanowar Elves","set_code":"dom","set_name":"Dominaria","collector_number":"168","language":"en","rarity":"common","image_url":"https://cards.scryfall.io/normal/front/5/8/581b7327-3215-4a4f-b4ae-d9d4002ba882.jpg"},
+{"id":6,"name":"Stoneforge Mystic","set_code":"2xm","set_name":"Double Masters","collector_number":"31","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/4/d/4d3473d0-b46f-41f5-ac1e-ba217f7747d4.jpg"},
+{"id":7,"name":"Dark Ritual","set_code":"sta","set_name":"Strixhaven Mystical Archive","collector_number":"26","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/6/f/6fc57076-cac4-4f5e-956b-e3d77bd258b2.jpg"},
+{"id":8,"name":"Thoughtseize","set_code":"2xm","set_name":"Double Masters","collector_number":"109","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/b/2/b281a308-ab6b-47b6-bec7-632c9aaecede.jpg"},
+{"id":9,"name":"Birds of Paradise","set_code":"rvr","set_name":"Ravnica Remastered","collector_number":"133","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/3/d/3d69a3e0-6a2e-475a-964e-0affed1c017d.jpg"},
+{"id":10,"name":"Rhystic Study","set_code":"wot","set_name":"Wilds of Eldraine: Enchanting Tales","collector_number":"25","language":"en","rarity":"mythic","image_url":"https://cards.scryfall.io/normal/front/0/4/043b2d30-a40f-4d47-933b-80544512f9c2.jpg"},
+{"id":11,"name":"Cyclonic Rift","set_code":"2xm","set_name":"Double Masters","collector_number":"47","language":"en","rarity":"rare","image_url":"https://cards.scryfall.io/normal/front/f/f/ff08e5ed-f47b-4d8e-8b8b-41675dccef8b.jpg"},
+{"id":12,"name":"Surrak, the Hunt Caller","set_code":"cmm","set_name":"Commander Masters","collector_number":"326","language":"en","rarity":"uncommon","image_url":"https://cards.scryfall.io/normal/front/7/1/71590b6f-9f38-4c5d-8431-50e5f02f8c93.jpg"}
+]}

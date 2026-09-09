@@ -2,6 +2,12 @@
 
 Protótipo funcional de uma vitrine comunitária brasileira para jogadores de Magic: The Gathering encontrarem quem possui — ou procura — uma impressão específica. A negociação acontece diretamente entre jogadores; o produto não intermedeia pagamentos no MVP.
 
+## Site publicado
+
+**https://xoykor.github.io/mana-ponte/**
+
+O GitHub Pages executa a versão estática em `public/`, com catálogo e ofertas demonstrativas em JSON. Busca, filtros e criação de ofertas funcionam no navegador; ofertas criadas ali ficam somente no `localStorage` do visitante. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
+
 ## Executar
 
 Requer somente Python 3.11 ou superior; não há pacotes para instalar.
@@ -80,5 +86,6 @@ data/app.db          banco local gerado
 - o carregamento do grande JSON Scryfall ocorre em memória antes do upsert em lotes;
 - SQLite e o servidor da biblioteca padrão são adequados ao esboço, não à operação pública;
 - imagens dependem de conexão e da disponibilidade do Scryfall.
+- no GitHub Pages não há persistência compartilhada: para contas e anúncios reais, o frontend deverá apontar para uma API hospedada separadamente.
 
 Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.
