@@ -1,6 +1,7 @@
 """Catálogo e anúncios demonstrativos, determinísticos e sem rede."""
 from __future__ import annotations
 from .db import get_connection, init_db
+DEV_PASSWORD = "ManaPonte!2026"
 
 CARDS = [
     ("b0faa7f2-b547-42c4-a810-839da50dadfe", "5089ec1a-f881-4d55-af14-5d996171203b", "Black Lotus", "lea", "Limited Edition Alpha", "232", "en", "rare", "https://cards.scryfall.io/normal/front/b/0/b0faa7f2-b547-42c4-a810-839da50dadfe.jpg"),
@@ -16,12 +17,14 @@ CARDS = [
     ("ff08e5ed-f47b-4d8e-8b8b-41675dccef8b", "d75b9c82-1b49-4c3e-a1b5-aeef57d6644b", "Cyclonic Rift", "2xm", "Double Masters", "47", "en", "rare", "https://cards.scryfall.io/normal/front/f/f/ff08e5ed-f47b-4d8e-8b8b-41675dccef8b.jpg"),
     ("71590b6f-9f38-4c5d-8431-50e5f02f8c93", "fa56a5fa-ef96-404c-8fb6-d1f5fcebb52e", "Surrak, the Hunt Caller", "cmm", "Commander Masters", "326", "en", "uncommon", "https://cards.scryfall.io/normal/front/7/1/71590b6f-9f38-4c5d-8431-50e5f02f8c93.jpg"),
 ]
+
 USERS = [
     (1, "danton", "danton@example.test", "Danton Homero", "Natal", "RN"),
     (2, "marina", "marina@example.test", "Marina Lima", "Fortaleza", "CE"),
     (3, "caio", "caio@example.test", "Caio Nunes", "Recife", "PE"),
     (4, "bia", "bia@example.test", "Beatriz Rocha", "João Pessoa", "PB"),
 ]
+
 LISTINGS = [
     (1, 2, "Sol Ring para troca", "Carta bem conservada, procuro staples de Commander.", None, "NM", "en", "troca"),
     (2, 3, "Lightning Bolt", "Playset disponível; preço por unidade.", 1200, "SP", "en", "venda"),
@@ -30,6 +33,7 @@ LISTINGS = [
     (5, 6, "Swords to Plowshares", "Envio por carta registrada.", 1800, "NM", "en", "venda"),
     (6, 10, "Rhystic Study", "Busco fetch lands ou proposta em dinheiro.", 21000, "NM", "en", "ambos"),
 ]
+
 
 def seed_all(db_path=None, reset: bool = False) -> None:
     path = init_db(db_path)
@@ -40,6 +44,8 @@ def seed_all(db_path=None, reset: bool = False) -> None:
             conn.execute("DELETE FROM listings")
             conn.execute("DELETE FROM users")
             conn.execute("DELETE FROM cards")
+
+        # Inserir cards
         conn.executemany(
             """INSERT INTO cards(scryfall_id,oracle_id,name,set_code,set_name,collector_number,language,rarity,image_url)
                VALUES (?,?,?,?,?,?,?,?,?)
@@ -47,10 +53,21 @@ def seed_all(db_path=None, reset: bool = False) -> None:
                set_name=excluded.set_name,collector_number=excluded.collector_number,
                language=excluded.language,rarity=excluded.rarity,image_url=excluded.image_url""",
             CARDS)
+
+        # O seed nunca substitui senhas existentes.
         conn.executemany(
             """INSERT INTO users(id,username,email,display_name,city,state) VALUES (?,?,?,?,?,?)
                ON CONFLICT(id) DO UPDATE SET username=excluded.username,email=excluded.email,
-               display_name=excluded.display_name,city=excluded.city,state=excluded.state""", USERS)
+               display_name=excluded.display_name,city=excluded.city,state=excluded.state""",
+            USERS)
+        from .auth import hash_password
+        for user_id, *_ in USERS:
+            current = conn.execute("SELECT password_hash FROM users WHERE id=?", (user_id,)).fetchone()
+            if current and current["password_hash"] is None:
+                conn.execute("UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                             (hash_password(DEV_PASSWORD), user_id))
+
+        # Inserir listings
         ids = {r["scryfall_id"]: r["id"] for r in conn.execute("SELECT id,scryfall_id FROM cards")}
         ordered = [ids[row[0]] for row in CARDS]
         for lid, pos, title, desc, price, condition, language, mode in LISTINGS:
@@ -61,6 +78,7 @@ def seed_all(db_path=None, reset: bool = False) -> None:
                    title=excluded.title,description=excluded.description,price_cents=excluded.price_cents,
                    condition=excluded.condition,language=excluded.language,mode=excluded.mode""",
                 (lid, ordered[pos-1], ((lid-1)%4)+1, title, desc, price, condition, language, mode, "#contato"))
+
         conn.execute(
             """INSERT INTO wants(card_id,user_id,max_price_cents,desired_condition,mode)
                VALUES (?,1,22000,'SP','ambos') ON CONFLICT(card_id,user_id) DO NOTHING""",
@@ -68,6 +86,7 @@ def seed_all(db_path=None, reset: bool = False) -> None:
         conn.commit()
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     seed_all()

@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from app.catalog import import_file, normalize_card
@@ -26,5 +27,5 @@ class CatalogTest(unittest.TestCase):
                  "digital":True,"games":["arena"]}]), encoding="utf-8")
             self.assertEqual(import_file(source, db, batch_size=1), 1)
             self.assertEqual(import_file(source, db, batch_size=1), 1)
-            with get_connection(db) as conn:
+            with closing(get_connection(db)) as conn:
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0], 1)

@@ -6,7 +6,7 @@ Protótipo funcional de uma vitrine comunitária brasileira para jogadores de Ma
 
 **https://xoykor.github.io/mana-ponte/**
 
-O GitHub Pages executa a versão estática em `public/`, com catálogo e ofertas demonstrativas em JSON. Busca, filtros e criação de ofertas funcionam no navegador; ofertas criadas ali ficam somente no `localStorage` do visitante. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
+O GitHub Pages executa a versão estática em `public/`, com catálogo e ofertas demonstrativas em JSON. Busca, filtros e criação demonstrativa de ofertas funcionam no navegador; ofertas criadas ali ficam somente no `localStorage`. Cadastro real fica indisponível nessa versão porque exige a API e o banco. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
 
 ## Executar
 
@@ -18,6 +18,10 @@ cd /home/x/Documentos/Estudo/Qwen/mana-ponte
 ```
 
 Acesse `http://127.0.0.1:8000`. O script garante de forma idempotente os dados demonstrativos com 12 impressões reais, 4 perfis e 6 anúncios, sem apagar um catálogo já importado.
+
+Se a porta estiver ocupada: `MANAPONTE_PORT=8001 ./scripts/dev.sh`.
+
+Conta local de desenvolvimento: `danton` / `ManaPonte!2026`. Essa credencial é exclusivamente um fixture público; nunca a reutilize em produção.
 
 Testes offline:
 
@@ -46,6 +50,10 @@ O importador descobre o `download_uri` atual no endpoint Bulk Data, identifica o
 | Método | Rota | Função |
 | --- | --- | --- |
 | GET | `/api/health` | Saúde do serviço |
+| POST | `/api/auth/register` | Valida dados, cria conta e sessão |
+| POST | `/api/auth/login` | Autentica e cria sessão |
+| GET | `/api/auth/me` | Retorna usuário e token CSRF da sessão |
+| POST | `/api/auth/logout` | Revoga a sessão; exige CSRF |
 | GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo |
 | GET | `/api/sets` | Coleções e contagem de impressões |
 | GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=` | Ofertas filtradas |
@@ -57,7 +65,6 @@ Exemplo de criação:
 ```json
 {
   "card_id": 1,
-  "user_id": 1,
   "title": "Vendo ou troco",
   "price_cents": 2500,
   "condition": "NM",
@@ -66,12 +73,14 @@ Exemplo de criação:
 }
 ```
 
-No MVP, `user_id` é recebido apenas para permitir a demonstração. Em produção, ele deve obrigatoriamente vir da sessão autenticada.
+Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/me`. O backend ignora qualquer `user_id` do cliente e atribui a oferta ao usuário da sessão.
+
+Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
 ## Estrutura
 
 ```text
-app/                 domínio, SQLite, catálogo e servidor HTTP
+app/                 domínio, autenticação, SQLite, catálogo e servidor HTTP
 public/              interface responsiva sem framework
 scripts/dev.sh       seed + servidor local
 scripts/import_scryfall.py
@@ -81,7 +90,7 @@ data/app.db          banco local gerado
 
 ## Limitações conscientes
 
-- sem autenticação, chat, reputação ou moderação;
+- sem recuperação de senha, verificação de e-mail, MFA, chat, reputação ou moderação;
 - sem pagamentos, frete ou custódia da transação;
 - o carregamento do grande JSON Scryfall ocorre em memória antes do upsert em lotes;
 - SQLite e o servidor da biblioteca padrão são adequados ao esboço, não à operação pública;

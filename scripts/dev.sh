@@ -6,5 +6,5 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 python3 -m app.seed
-echo "Abrindo ManaPonte em http://127.0.0.1:8000"
+echo "Abrindo ManaPonte em http://${MANAPONTE_HOST:-127.0.0.1}:${MANAPONTE_PORT:-8000}"
 exec python3 -m app.server

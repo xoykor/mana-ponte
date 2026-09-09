@@ -20,12 +20,15 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     display_name TEXT NOT NULL,
     city TEXT NOT NULL,
     state TEXT NOT NULL CHECK(length(state) = 2),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    password_hash TEXT,
+    email_verified INTEGER NOT NULL DEFAULT 0 CHECK(email_verified IN (0,1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS listings (
     id INTEGER PRIMARY KEY,
@@ -50,6 +53,14 @@ CREATE TABLE IF NOT EXISTS wants (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(card_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    csrf_token TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_cards_set_lang ON cards(set_code, language);
 CREATE INDEX IF NOT EXISTS idx_cards_oracle ON cards(oracle_id);
@@ -57,3 +68,5 @@ CREATE INDEX IF NOT EXISTS idx_users_location ON users(state, city);
 CREATE INDEX IF NOT EXISTS idx_listings_card ON listings(card_id);
 CREATE INDEX IF NOT EXISTS idx_listings_mode ON listings(mode);
 CREATE INDEX IF NOT EXISTS idx_wants_card ON wants(card_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
