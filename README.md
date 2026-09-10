@@ -45,6 +45,8 @@ python3 scripts/import_scryfall.py --file /caminho/default-cards.json
 
 O importador descobre o `download_uri` atual no endpoint Bulk Data, identifica o cliente por User-Agent, ignora cartas exclusivamente digitais, reconhece imagens de cartas dupla-face e faz upsert a cada 500 registros. O protótipo armazena URLs, não cópias das imagens. O uso público/comercial deve respeitar as políticas de dados e imagens do Scryfall e da Wizards of the Coast.
 
+Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consulta o endpoint de busca do Scryfall, percorre todas as páginas retornadas e grava as impressões encontradas no SQLite. Para operar somente com o catálogo local, use `MANAPONTE_REMOTE_SEARCH=0`.
+
 ## API
 
 | Método | Rota | Função |

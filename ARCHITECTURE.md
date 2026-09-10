@@ -30,7 +30,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 - `auth.py`: normaliza identidades, deriva senhas com `scrypt` e administra sessões opacas. Não conhece HTTP.
 - `catalog.py`: converte objetos Scryfall em impressões locais e realiza upsert em lotes. Não conhece anúncios.
 - `seed.py`: fixture determinístico para demonstração e testes; não acessa rede.
-- `server.py`: traduz HTTP em consultas/comandos, limita entradas e serve a interface. Não baixa catálogo.
+- `server.py`: traduz HTTP em consultas/comandos, limita entradas, serve a interface e pode enriquecer buscas do catálogo sob demanda via Scryfall.
 - `public/`: apresentação e interação. Não contém dados autoritativos.
 - `scripts/import_scryfall.py`: adaptador de rede e CLI para Bulk Data.
 

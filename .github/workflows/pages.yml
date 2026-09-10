@@ -1,15 +1,19 @@
+# Publica o conteúdo da pasta public/ no GitHub Pages a cada push em main.
 name: Publicar no GitHub Pages
 
+# Também permitimos uma execução manual pela aba Actions do GitHub.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# O deploy precisa ler o repositório, publicar páginas e emitir um token OIDC.
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Se houver dois pushes seguidos, o deploy antigo é cancelado em favor do novo.
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -20,12 +24,23 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # 1. Obtém os arquivos versionados do repositório.
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      # 2. Configura metadados e o ambiente padrão do Pages.
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      # 3. Empacota somente a aplicação estática pública.
+      - name: Preparar arquivos públicos
+        uses: actions/upload-pages-artifact@v3
         with:
           path: public
+
+      # 4. Publica o artefato e expõe sua URL no ambiente do job.
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4
