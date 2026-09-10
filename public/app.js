@@ -6,6 +6,7 @@ let staticListings = [];
 let mode = "";
 let currentUser = null;
 let csrfToken = null;
+let cardPicker = null;
 
 const esc = value => {
   const node = document.createElement("span");
@@ -77,9 +78,13 @@ function populateCatalog() {
     const option = document.createElement("option");
     option.value = code; option.textContent = `${name} (${code.toUpperCase()})`; $("#set").append(option);
   }
-  $("#cardSelect").innerHTML = cards.map(card =>
-    `<option value="${card.id}">${esc(card.name)} — ${esc(card.set_code.toUpperCase())} #${esc(card.collector_number)}</option>`
-  ).join("");
+  if (window.ManaBridgeCardPicker) {
+    cardPicker = window.ManaBridgeCardPicker.create({
+      root: $("#cardPicker"),
+      source: $("#cardPicker").dataset.source || "/api/cards",
+      staticCards: STATIC_MODE ? cards : null
+    });
+  }
 }
 
 function setAuth(data) {
@@ -124,13 +129,22 @@ $("#openModal").onclick = () => {
     $("#authStatus").textContent = "Entre ou crie uma conta para anunciar.";
     return authModal.showModal();
   }
+  $("#listingForm").reset();
+  $("#formStatus").textContent = "";
+  cardPicker?.clear();
   modal.showModal();
+  cardPicker?.focus();
 };
 $("#closeModal").onclick = () => modal.close();
 $("#listingForm").addEventListener("submit", async event => {
   event.preventDefault();
   const form = Object.fromEntries(new FormData(event.target));
-  const card = cards.find(item => item.id === Number(form.card_id));
+  const card = cardPicker?.getSelectedCard() || cards.find(item => item.id === Number(form.card_id));
+  if (!card) {
+    $("#formStatus").textContent = "Busque e selecione uma carta antes de publicar.";
+    cardPicker?.focus();
+    return;
+  }
   const payload = {
     card_id: Number(form.card_id), title: form.title, description: form.description,
     price_cents: form.price ? Math.round(Number(form.price) * 100) : null,

@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 from .auth import (create_session, csrf_matches, get_session, hash_password,
                    normalize_email, normalize_username, revoke_session,
                    valid_email, valid_username, validate_password, verify_password)
+from .catalog import search_scryfall, upsert_rows
 from .db import DEFAULT_DB_PATH, get_connection, init_db
 
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
@@ -25,6 +26,30 @@ MAX_BODY = 32 * 1024
 SESSION_TTL = 7 * 24 * 60 * 60
 BRAZIL_STATES = {"AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"}
 DUMMY_PASSWORD_HASH = hash_password("InvalidAccount!2026")
+REMOTE_CARD_CACHE = {}
+REMOTE_CARD_CACHE_LOCK = threading.Lock()
+REMOTE_CARD_CACHE_TTL = 300
+
+
+def remote_search_enabled():
+    return os.environ.get("MANAPONTE_REMOTE_SEARCH", "1").lower() not in {"0", "false", "no", "off"}
+
+
+def remote_cards(query, set_code=None, language=None):
+    key = (query.strip().lower(), (set_code or "").lower(), (language or "").lower())
+    now = time.monotonic()
+    with REMOTE_CARD_CACHE_LOCK:
+        cached = REMOTE_CARD_CACHE.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+    try:
+        found = search_scryfall(query, set_code, language)
+    except Exception as error:
+        print(f"Busca remota do catálogo indisponível: {error}")
+        found = []
+    with REMOTE_CARD_CACHE_LOCK:
+        REMOTE_CARD_CACHE[key] = (now + REMOTE_CARD_CACHE_TTL, found)
+    return found
 
 
 class LoginRateLimiter:
@@ -191,16 +216,39 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                               (("Set-Cookie", self.session_cookie("", 0)),))
 
     def get_cards(self):
-        query=self.params(); page=positive_int(query.get("page"),1,100000); limit=positive_int(query.get("limit"),24,100)
-        clauses=[]; values=[]
-        if query.get("q"): clauses.append("name LIKE ? COLLATE NOCASE"); values.append(f"%{query['q'][:100]}%")
-        if query.get("set"): clauses.append("set_code=? COLLATE NOCASE"); values.append(query["set"][:16])
-        if query.get("lang"): clauses.append("language=?"); values.append(query["lang"][:8])
-        where=" WHERE "+" AND ".join(clauses) if clauses else ""
+        query = self.params()
+        page = positive_int(query.get("page"), 1, 100000)
+        limit = positive_int(query.get("limit"), 24, 100)
+        clauses, values = [], []
+        search = query.get("q", "").strip()[:100]
+        set_code = query.get("set", "").strip()[:16]
+        language = query.get("lang", "").strip()[:8]
+        if search:
+            clauses.append("name LIKE ? COLLATE NOCASE")
+            values.append(f"%{search}%")
+        if set_code:
+            clauses.append("set_code=? COLLATE NOCASE")
+            values.append(set_code)
+        if language:
+            clauses.append("language=?")
+            values.append(language)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        source = "local"
         with closing(get_connection(self.db_path)) as conn:
-            total=conn.execute("SELECT COUNT(*) FROM cards"+where,values).fetchone()[0]
-            found=rows(conn.execute("SELECT id,scryfall_id,oracle_id,name,set_code,set_name,collector_number,language,rarity,image_url FROM cards"+where+" ORDER BY name,set_code,collector_number LIMIT ? OFFSET ?",values+[limit,(page-1)*limit]))
-        self.send_json({"cards":found,"page":page,"limit":limit,"total":total})
+            total = conn.execute("SELECT COUNT(*) FROM cards" + where, values).fetchone()[0]
+            if total == 0 and len(search) >= 3 and remote_search_enabled():
+                imported = remote_cards(search, set_code, language)
+                if imported:
+                    upsert_rows(conn, imported)
+                    conn.commit()
+                    source = "scryfall"
+                    total = conn.execute("SELECT COUNT(*) FROM cards" + where, values).fetchone()[0]
+            found = rows(conn.execute(
+                "SELECT id,scryfall_id,oracle_id,name,set_code,set_name,collector_number,language,rarity,image_url "
+                "FROM cards" + where + " ORDER BY name,set_code,collector_number LIMIT ? OFFSET ?",
+                values + [limit, (page - 1) * limit],
+            ))
+        self.send_json({"cards": found, "page": page, "limit": limit, "total": total, "source": source})
 
     def get_sets(self):
         with closing(get_connection(self.db_path)) as conn:

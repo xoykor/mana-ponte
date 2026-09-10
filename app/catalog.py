@@ -3,10 +3,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from .db import get_connection, init_db
 
 BATCH_SIZE = 500
+SCRYFALL_SEARCH_ENDPOINT = "https://api.scryfall.com/cards/search"
+SCRYFALL_USER_AGENT = "ManaPonte/0.1 (local card search)"
 
 
 def image_url(card: dict) -> str | None:
@@ -37,6 +41,33 @@ VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(scryfall_id) DO UPDATE SET
 oracle_id=excluded.oracle_id,name=excluded.name,set_code=excluded.set_code,set_name=excluded.set_name,
 collector_number=excluded.collector_number,language=excluded.language,rarity=excluded.rarity,
 image_url=excluded.image_url,updated_at=CURRENT_TIMESTAMP"""
+
+
+def upsert_rows(connection, rows: list[tuple]) -> int:
+    """Grava impressões normalizadas sem duplicar o scryfall_id."""
+    if not rows:
+        return 0
+    connection.executemany(UPSERT, rows)
+    return len(rows)
+
+
+def search_scryfall(query: str, set_code: str | None = None, language: str | None = None) -> list[tuple]:
+    """Busca impressões em papel no Scryfall e retorna as mesmas tuplas do importador."""
+    cleaned = " ".join(query.split())
+    if not cleaned:
+        return []
+    name_query = f'name:"{cleaned.replace(chr(34), "")}"'
+    parts = [name_query, "unique:prints"]
+    if set_code:
+        parts.append(f"set:{set_code.strip()}")
+    if language:
+        parts.append(f"lang:{language.strip()}")
+    url = f"{SCRYFALL_SEARCH_ENDPOINT}?q={quote(' '.join(parts))}&include_extras=false"
+    request = Request(url, headers={"User-Agent": SCRYFALL_USER_AGENT, "Accept": "application/json"})
+    with urlopen(request, timeout=8) as response:
+        payload = json.load(response)
+    cards = payload.get("data", []) if isinstance(payload, dict) else []
+    return [normalized for card in cards if (normalized := normalize_card(card)) is not None]
 
 
 def import_file(file_path: str | Path, db_path=None, batch_size=BATCH_SIZE) -> int:

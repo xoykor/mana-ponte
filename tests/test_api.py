@@ -5,7 +5,9 @@ import threading
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
+import app.server as server_module
 from app.db import get_connection
 from app.seed import DEV_PASSWORD, seed_all
 from app.server import create_server
@@ -75,3 +77,22 @@ class ApiTest(unittest.TestCase):
         status,health=self.request("GET","/api/health"); self.assertEqual((status,health["status"]),(200,"ok"))
         status,home=self.request("GET","/"); self.assertEqual(status,200); self.assertIn(b"ManaPonte",home)
         status,cards=self.request("GET","/api/cards?q=Sol&set=cmm&limit=1"); self.assertEqual(cards["total"],1)
+
+    def test_cards_fall_back_to_scryfall_and_persist_locally(self):
+        server_module.REMOTE_CARD_CACHE.clear()
+        remote_row = (
+            "remote-card-id", "remote-oracle-id", "Regression Felidar", "tst",
+            "Regression Set", "1", "en", "rare", "https://img.test/felidar.jpg",
+        )
+        with patch("app.server.search_scryfall", return_value=[remote_row]) as remote:
+            status, first = self.request("GET", "/api/cards?q=Regression%20Felidar&limit=10")
+            self.assertEqual(status, 200)
+            self.assertEqual(first["source"], "scryfall")
+            self.assertEqual(first["total"], 1)
+            self.assertEqual(first["cards"][0]["name"], "Regression Felidar")
+
+            status, second = self.request("GET", "/api/cards?q=Regression%20Felidar&limit=10")
+            self.assertEqual(status, 200)
+            self.assertEqual(second["source"], "local")
+            self.assertEqual(second["total"], 1)
+            remote.assert_called_once_with("Regression Felidar", "", "")
