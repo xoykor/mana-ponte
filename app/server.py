@@ -13,6 +13,7 @@ import os
 import sqlite3
 import threading
 import time
+from collections.abc import Mapping
 from collections import defaultdict, deque
 from contextlib import closing
 from http import HTTPStatus
@@ -35,7 +36,17 @@ from .auth import (
     verify_password,
 )
 from .catalog import search_scryfall, upsert_rows
-from .db import DEFAULT_DB_PATH, get_connection, init_db
+from .db import (
+    DEFAULT_DB_PATH,
+    get_accounts_connection,
+    get_cards_connection,
+    get_connection,
+    get_listings_app_connection,
+    init_db,
+    legacy_env_db_path,
+    resolve_db_path,
+    resolve_db_paths,
+)
 
 
 # Arquivos estáticos são servidos pelo mesmo processo da API durante o
@@ -198,8 +209,12 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
     """Handler HTTP com rotas da API e arquivos estáticos."""
 
     # A fábrica ``create_server`` substitui este caminho por banco de teste
-    # quando necessário.
+    # quando necessário. Ele também identifica o modo legado de arquivo único.
     db_path = DEFAULT_DB_PATH
+    split_databases = False
+    cards_db_path = None
+    accounts_db_path = None
+    listings_db_path = None
 
     # Cada servidor recebe seu próprio limiter para os testes e para processos
     # diferentes não compartilharem estado acidentalmente.
@@ -283,10 +298,59 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             return None
         return cookie["mp_session"].value
 
+    def accounts_path(self):
+        """Retorna o banco que contém usuários e sessões."""
+
+        return self.accounts_db_path if self.split_databases else self.db_path
+
+    def cards_path(self):
+        """Retorna o banco que contém o catálogo de cartas."""
+
+        return self.cards_db_path if self.split_databases else self.db_path
+
+    def cards_table(self) -> str:
+        """Nome qualificado da tabela de cartas para o modo atual."""
+
+        return "catalog.cards" if self.split_databases else "cards"
+
+    def users_table(self) -> str:
+        """Nome qualificado da tabela de usuários para o modo atual."""
+
+        return "accounts.users" if self.split_databases else "users"
+
+    def account_connection(self):
+        """Abre a conexão do banco de contas."""
+
+        return (
+            get_accounts_connection(self.accounts_path())
+            if self.split_databases
+            else get_connection(self.accounts_path())
+        )
+
+    def cards_connection(self):
+        """Abre a conexão do banco de cartas."""
+
+        return (
+            get_cards_connection(self.cards_path())
+            if self.split_databases
+            else get_connection(self.cards_path())
+        )
+
+    def listings_connection(self):
+        """Abre anúncios e, quando necessário, anexa cartas e contas."""
+
+        if not self.split_databases:
+            return get_connection(self.db_path)
+        return get_listings_app_connection(
+            self.listings_db_path,
+            self.cards_db_path,
+            self.accounts_db_path,
+        )
+
     def current_session(self) -> dict | None:
         """Busca no banco a sessão correspondente ao cookie atual."""
 
-        return get_session(self.session_token(), self.db_path)
+        return get_session(self.session_token(), self.accounts_path())
 
     def session_cookie(self, token: str, max_age: int = SESSION_TTL) -> str:
         """Monta o cookie de sessão com atributos de segurança."""
@@ -410,7 +474,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         ):
             raise ValueError("Nome, cidade ou UF inválidos")
 
-        connection = get_connection(self.db_path)
+        connection = self.account_connection()
         try:
             try:
                 cursor = connection.execute(
@@ -446,8 +510,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             connection.close()
 
         # Criar a sessão depois do commit garante que o usuário já exista.
-        session_data = create_session(user_id, self.db_path, SESSION_TTL)
-        session = get_session(session_data["token"], self.db_path)
+        session_data = create_session(user_id, self.accounts_path(), SESSION_TTL)
+        session = get_session(session_data["token"], self.accounts_path())
 
         return self.send_json(
             self.auth_payload(session),
@@ -468,7 +532,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 429,
             )
 
-        connection = get_connection(self.db_path)
+        connection = self.account_connection()
         try:
             user = connection.execute(
                 """
@@ -496,8 +560,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             return self.send_json({"error": "Credenciais inválidas"}, 401)
 
         self.rate_limiter.success(key)
-        session_data = create_session(user["id"], self.db_path, SESSION_TTL)
-        session = get_session(session_data["token"], self.db_path)
+        session_data = create_session(user["id"], self.accounts_path(), SESSION_TTL)
+        session = get_session(session_data["token"], self.accounts_path())
 
         return self.send_json(
             self.auth_payload(session),
@@ -516,7 +580,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
             return self.send_json({"error": "Token CSRF inválido"}, 403)
 
-        revoke_session(token, self.db_path)
+        revoke_session(token, self.accounts_path())
         return self.send_json(
             {"message": "Sessão encerrada"},
             200,
@@ -555,7 +619,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         source = "local"
 
-        connection = get_connection(self.db_path)
+        connection = self.cards_connection()
         try:
             total = connection.execute(
                 "SELECT COUNT(*) FROM cards" + where,
@@ -610,7 +674,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
     def get_sets(self) -> None:
         """Retorna todas as coleções presentes no catálogo local."""
 
-        connection = get_connection(self.db_path)
+        connection = self.cards_connection()
         try:
             found = rows(
                 connection.execute(
@@ -657,8 +721,10 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             values.append(f"%{query_params['card'][:100]}%")
 
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        cards_table = self.cards_table()
+        users_table = self.users_table()
         sql = (
-            """
+            f"""
             SELECT
                 l.id,
                 l.card_id,
@@ -679,14 +745,14 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 l.contact_url,
                 l.created_at
             FROM listings AS l
-            JOIN cards AS c ON c.id = l.card_id
-            JOIN users AS u ON u.id = l.user_id
+            JOIN {cards_table} AS c ON c.id = l.card_id
+            JOIN {users_table} AS u ON u.id = l.user_id
             """
             + where
             + " ORDER BY l.created_at DESC, l.id DESC"
         )
 
-        connection = get_connection(self.db_path)
+        connection = self.listings_connection()
         try:
             found = rows(connection.execute(sql, values))
         finally:
@@ -701,11 +767,13 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         if not card_id:
             raise ValueError("card_id é obrigatório")
 
-        connection = get_connection(self.db_path)
+        connection = self.listings_connection()
         try:
+            cards_table = self.cards_table()
+            users_table = self.users_table()
             found = rows(
                 connection.execute(
-                    """
+                    f"""
                     SELECT
                         l.id AS listing_id,
                         l.card_id,
@@ -719,8 +787,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         u.city,
                         u.state
                     FROM listings AS l
-                    JOIN cards AS c ON c.id = l.card_id
-                    JOIN users AS u ON u.id = l.user_id
+                    JOIN {cards_table} AS c ON c.id = l.card_id
+                    JOIN {users_table} AS u ON u.id = l.user_id
                     WHERE l.card_id = ?
                     ORDER BY u.state, u.city
                     """,
@@ -765,10 +833,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         if price_cents is not None and price_cents < 0:
             raise ValueError("Preço não pode ser negativo")
 
-        connection = get_connection(self.db_path)
+        connection = self.listings_connection()
         try:
+            cards_table = self.cards_table()
             card_exists = connection.execute(
-                "SELECT 1 FROM cards WHERE id = ?",
+                f"SELECT 1 FROM {cards_table} WHERE id = ?",
                 (card_id,),
             ).fetchone()
             if not card_exists:
@@ -840,17 +909,57 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 def create_server(
     host: str = "127.0.0.1",
     port: int = 8000,
-    db_path: str | Path | None = None,
+    db_path: str | Path | Mapping[str, str | Path | None] | None = None,
+    db_paths: Mapping[str, str | Path | None] | None = None,
 ) -> ThreadingHTTPServer:
-    """Cria um servidor com o banco escolhido pelo chamador."""
+    """Cria um servidor usando bancos separados ou o modo legado.
+
+    O modo novo é o padrão e aceita ``db_paths`` com as chaves ``cards``,
+    ``accounts`` e ``listings``. Um caminho único em ``db_path`` mantém a
+    compatibilidade com a API anterior e usa um único SQLite.
+    """
+
+    # Aceitar o mapping também no argumento antigo torna a transição menos
+    # surpreendente para scripts que já passavam uma configuração posicional.
+    if isinstance(db_path, Mapping):
+        if db_paths is not None:
+            raise ValueError("Informe db_path ou db_paths, não ambos")
+        db_paths = db_path
+        db_path = None
+
+    if db_path is not None and db_paths is not None:
+        raise ValueError("Informe db_path ou db_paths, não ambos")
+
+    if db_path is None and db_paths is None:
+        db_path = legacy_env_db_path()
+
+    if db_path is None:
+        paths = resolve_db_paths(db_paths)
+        init_db(paths)
+        handler_options = {
+            "db_path": DEFAULT_DB_PATH,
+            "split_databases": True,
+            "cards_db_path": paths["cards"],
+            "accounts_db_path": paths["accounts"],
+            "listings_db_path": paths["listings"],
+        }
+    else:
+        legacy_path = resolve_db_path(db_path)
+        init_db(legacy_path)
+        handler_options = {
+            "db_path": legacy_path,
+            "split_databases": False,
+            "cards_db_path": None,
+            "accounts_db_path": None,
+            "listings_db_path": None,
+        }
+
+    handler_options["rate_limiter"] = LoginRateLimiter()
 
     configured_handler = type(
         "ConfiguredManaPonteHandler",
         (ManaPonteHandler,),
-        {
-            "db_path": db_path or DEFAULT_DB_PATH,
-            "rate_limiter": LoginRateLimiter(),
-        },
+        handler_options,
     )
     return ThreadingHTTPServer((host, port), configured_handler)
 

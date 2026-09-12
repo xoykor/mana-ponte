@@ -99,7 +99,7 @@ def main() -> None:
     parser.add_argument(
         "--db",
         type=Path,
-        help="caminho alternativo para o banco SQLite",
+        help="caminho alternativo para o banco SQLite de cartas",
     )
     args = parser.parse_args()
 

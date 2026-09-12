@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from .db import get_connection, init_db
+from .db import get_cards_connection, init_cards_db
 
 
 # O importador de Bulk Data grava registros em grupos para reduzir commits.
@@ -204,7 +204,7 @@ def import_file(
     """Importa um array JSON do Bulk Data e retorna o total processado."""
 
     # O schema precisa existir antes de qualquer operação de upsert.
-    init_db(db_path)
+    init_cards_db(db_path)
 
     with Path(file_path).open(encoding="utf-8") as source:
         payload = json.load(source)
@@ -214,7 +214,7 @@ def import_file(
 
     total_imported = 0
     batch = []
-    connection = get_connection(db_path)
+    connection = get_cards_connection(db_path)
 
     try:
         for raw_card in payload:

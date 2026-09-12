@@ -13,11 +13,11 @@ O GitHub Pages executa a versão estática em `public/`, com catálogo e ofertas
 Requer somente Python 3.11 ou superior; não há pacotes para instalar.
 
 ```bash
-cd /home/x/Documentos/Estudo/Qwen/mana-ponte
+cd /home/x/Documentos/Estudo/Projetinho
 ./scripts/dev.sh
 ```
 
-Acesse `http://127.0.0.1:8000`. O script garante de forma idempotente os dados demonstrativos com 12 impressões reais, 4 perfis e 6 anúncios, sem apagar um catálogo já importado.
+Acesse `http://127.0.0.1:8000`. O script garante de forma idempotente os dados demonstrativos com 12 impressões reais, 4 perfis e 6 anúncios, sem apagar um catálogo já importado. O estado local fica em três arquivos: `data/cards.db`, `data/accounts.db` e `data/listings.db`.
 
 Se a porta estiver ocupada: `MANAPONTE_PORT=8001 ./scripts/dev.sh`.
 
@@ -45,7 +45,7 @@ python3 scripts/import_scryfall.py --file /caminho/default-cards.json
 
 O importador descobre o `download_uri` atual no endpoint Bulk Data, identifica o cliente por User-Agent, ignora cartas exclusivamente digitais, reconhece imagens de cartas dupla-face e faz upsert a cada 500 registros. O protótipo armazena URLs, não cópias das imagens. O uso público/comercial deve respeitar as políticas de dados e imagens do Scryfall e da Wizards of the Coast.
 
-Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consulta o endpoint de busca do Scryfall, percorre todas as páginas retornadas e grava as impressões encontradas no SQLite. Para operar somente com o catálogo local, use `MANAPONTE_REMOTE_SEARCH=0`.
+Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consulta o endpoint de busca do Scryfall, percorre todas as páginas retornadas e grava as impressões encontradas em `data/cards.db`. Para operar somente com o catálogo local, use `MANAPONTE_REMOTE_SEARCH=0`.
 
 ## API
 
@@ -79,6 +79,8 @@ Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/m
 
 Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
+Os caminhos dos três bancos podem ser substituídos por `MANAPONTE_CARDS_DB_PATH`, `MANAPONTE_ACCOUNTS_DB_PATH` e `MANAPONTE_LISTINGS_DB_PATH`. Um caminho único explícito continua disponível para compatibilidade com instalações antigas.
+
 ## Estrutura
 
 ```text
@@ -87,8 +89,14 @@ public/              interface responsiva sem framework
 scripts/dev.sh       seed + servidor local
 scripts/import_scryfall.py
 tests/               API real, banco e importador sem rede
-data/app.db          banco local gerado
+data/cards.db        catálogo local gerado
+data/accounts.db     usuários e sessões locais
+data/listings.db     ofertas e desejos locais
 ```
+
+`data/app.db` e `MANAPONTE_DB_PATH` são mantidos apenas para abrir ou migrar
+instalações legadas de arquivo único; o modo legado é ativado ao fornecer esse
+caminho explicitamente ou definir essa variável sem as variáveis específicas.
 
 ## Limitações conscientes
 

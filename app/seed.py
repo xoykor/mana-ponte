@@ -6,8 +6,20 @@ substituir um catálogo real nem ser usado como rotina de sincronização.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+from contextlib import ExitStack, closing
+
 from .auth import hash_password
-from .db import get_connection, init_db
+from .db import (
+    get_accounts_connection,
+    get_cards_connection,
+    get_connection,
+    get_listings_db_connection,
+    init_db,
+    legacy_env_db_path,
+    resolve_db_paths,
+)
 
 
 # Senha pública usada somente pelos fixtures locais e pelos testes.
@@ -228,156 +240,229 @@ LISTINGS = [
 ]
 
 
-def seed_all(db_path=None, reset: bool = False) -> None:
-    """Garante schema e dados de demonstração no banco escolhido.
+def _seed_cards(connection) -> None:
+    """Insere as impressões de demonstração sem duplicar o catálogo."""
 
-    Sem ``reset=True``, registros existentes são preservados e os fixtures são
-    atualizados de forma idempotente. Isso permite iniciar a aplicação várias
-    vezes sem destruir um catálogo já importado.
-    """
+    connection.executemany(
+        """
+        INSERT INTO cards(
+            scryfall_id,
+            oracle_id,
+            name,
+            set_code,
+            set_name,
+            collector_number,
+            language,
+            rarity,
+            image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(scryfall_id) DO UPDATE SET
+            name = excluded.name,
+            set_code = excluded.set_code,
+            set_name = excluded.set_name,
+            collector_number = excluded.collector_number,
+            language = excluded.language,
+            rarity = excluded.rarity,
+            image_url = excluded.image_url
+        """,
+        CARDS,
+    )
 
-    path = init_db(db_path)
-    connection = get_connection(path)
 
-    try:
+def _seed_users(connection) -> None:
+    """Insere perfis demonstrativos sem substituir suas senhas."""
+
+    connection.executemany(
+        """
+        INSERT INTO users(
+            id,
+            username,
+            email,
+            display_name,
+            city,
+            state
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            username = excluded.username,
+            email = excluded.email,
+            display_name = excluded.display_name,
+            city = excluded.city,
+            state = excluded.state
+        """,
+        USERS,
+    )
+
+    for user_id, *_ in USERS:
+        current = connection.execute(
+            "SELECT password_hash FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if current and current["password_hash"] is None:
+            connection.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (hash_password(DEV_PASSWORD), user_id),
+            )
+
+
+def _ordered_card_ids(connection) -> list[int]:
+    """Converte a ordem dos fixtures em IDs numéricos do catálogo."""
+
+    card_ids_by_scryfall = {
+        row["scryfall_id"]: row["id"]
+        for row in connection.execute("SELECT id, scryfall_id FROM cards")
+    }
+    return [card_ids_by_scryfall[row[0]] for row in CARDS]
+
+
+def _seed_listings(connection, ordered_card_ids: list[int]) -> None:
+    """Insere ofertas que referenciam cartas e usuários existentes."""
+
+    for (
+        listing_id,
+        card_position,
+        title,
+        description,
+        price_cents,
+        condition,
+        language,
+        mode,
+    ) in LISTINGS:
+        connection.execute(
+            """
+            INSERT INTO listings(
+                id,
+                card_id,
+                user_id,
+                title,
+                description,
+                price_cents,
+                condition,
+                language,
+                mode,
+                contact_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                card_id = excluded.card_id,
+                user_id = excluded.user_id,
+                title = excluded.title,
+                description = excluded.description,
+                price_cents = excluded.price_cents,
+                condition = excluded.condition,
+                language = excluded.language,
+                mode = excluded.mode
+            """,
+            (
+                listing_id,
+                ordered_card_ids[card_position - 1],
+                ((listing_id - 1) % 4) + 1,
+                title,
+                description,
+                price_cents,
+                condition,
+                language,
+                mode,
+                "#contato",
+            ),
+        )
+
+
+def _seed_wants(connection, ordered_card_ids: list[int]) -> None:
+    """Insere o desejo demonstrativo uma única vez."""
+
+    connection.execute(
+        """
+        INSERT INTO wants(
+            card_id,
+            user_id,
+            max_price_cents,
+            desired_condition,
+            mode
+        ) VALUES (?, 1, 22000, 'SP', 'ambos')
+        ON CONFLICT(card_id, user_id) DO NOTHING
+        """,
+        (ordered_card_ids[9],),
+    )
+
+
+def _seed_legacy(path, reset: bool) -> None:
+    """Mantém o comportamento do arquivo único usado por versões anteriores."""
+
+    with closing(get_connection(path)) as connection:
         if reset:
             # A ordem respeita as relações entre ofertas, usuários e cartas.
             connection.execute("DELETE FROM wants")
             connection.execute("DELETE FROM listings")
+            connection.execute("DELETE FROM sessions")
             connection.execute("DELETE FROM users")
             connection.execute("DELETE FROM cards")
 
-        connection.executemany(
-            """
-            INSERT INTO cards(
-                scryfall_id,
-                oracle_id,
-                name,
-                set_code,
-                set_name,
-                collector_number,
-                language,
-                rarity,
-                image_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(scryfall_id) DO UPDATE SET
-                name = excluded.name,
-                set_code = excluded.set_code,
-                set_name = excluded.set_name,
-                collector_number = excluded.collector_number,
-                language = excluded.language,
-                rarity = excluded.rarity,
-                image_url = excluded.image_url
-            """,
-            CARDS,
-        )
-
-        # O seed atualiza dados públicos, mas nunca substitui uma senha que já
-        # foi definida por um usuário real.
-        connection.executemany(
-            """
-            INSERT INTO users(
-                id,
-                username,
-                email,
-                display_name,
-                city,
-                state
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                username = excluded.username,
-                email = excluded.email,
-                display_name = excluded.display_name,
-                city = excluded.city,
-                state = excluded.state
-            """,
-            USERS,
-        )
-
-        for user_id, *_ in USERS:
-            current = connection.execute(
-                "SELECT password_hash FROM users WHERE id = ?",
-                (user_id,),
-            ).fetchone()
-            if current and current["password_hash"] is None:
-                connection.execute(
-                    """
-                    UPDATE users
-                    SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (hash_password(DEV_PASSWORD), user_id),
-                )
-
-        # Converte o scryfall_id das constantes acima no id inteiro local.
-        card_ids_by_scryfall = {
-            row["scryfall_id"]: row["id"]
-            for row in connection.execute(
-                "SELECT id, scryfall_id FROM cards"
-            )
-        }
-        ordered_card_ids = [
-            card_ids_by_scryfall[row[0]]
-            for row in CARDS
-        ]
-
-        for listing_id, card_position, title, description, price_cents, condition, language, mode in LISTINGS:
-            connection.execute(
-                """
-                INSERT INTO listings(
-                    id,
-                    card_id,
-                    user_id,
-                    title,
-                    description,
-                    price_cents,
-                    condition,
-                    language,
-                    mode,
-                    contact_url
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    card_id = excluded.card_id,
-                    user_id = excluded.user_id,
-                    title = excluded.title,
-                    description = excluded.description,
-                    price_cents = excluded.price_cents,
-                    condition = excluded.condition,
-                    language = excluded.language,
-                    mode = excluded.mode
-                """,
-                (
-                    listing_id,
-                    ordered_card_ids[card_position - 1],
-                    ((listing_id - 1) % 4) + 1,
-                    title,
-                    description,
-                    price_cents,
-                    condition,
-                    language,
-                    mode,
-                    "#contato",
-                ),
-            )
-
-        # O desejo demonstrativo é inserido uma única vez por usuário e carta.
-        connection.execute(
-            """
-            INSERT INTO wants(
-                card_id,
-                user_id,
-                max_price_cents,
-                desired_condition,
-                mode
-            ) VALUES (?, 1, 22000, 'SP', 'ambos')
-            ON CONFLICT(card_id, user_id) DO NOTHING
-            """,
-            (ordered_card_ids[9],),
-        )
-
+        _seed_cards(connection)
+        _seed_users(connection)
+        ordered_card_ids = _ordered_card_ids(connection)
+        _seed_listings(connection, ordered_card_ids)
+        _seed_wants(connection, ordered_card_ids)
         connection.commit()
-    finally:
-        connection.close()
+
+
+def _seed_split(paths: Mapping[str, str | os.PathLike], reset: bool) -> None:
+    """Popula os três bancos, mantendo referências externas por ID."""
+
+    with ExitStack() as stack:
+        cards = stack.enter_context(closing(get_cards_connection(paths["cards"])))
+        accounts = stack.enter_context(
+            closing(get_accounts_connection(paths["accounts"]))
+        )
+        listings = stack.enter_context(
+            closing(get_listings_db_connection(paths["listings"]))
+        )
+
+        if reset:
+            listings.execute("DELETE FROM wants")
+            listings.execute("DELETE FROM listings")
+            accounts.execute("DELETE FROM sessions")
+            accounts.execute("DELETE FROM users")
+            cards.execute("DELETE FROM cards")
+            cards.commit()
+            accounts.commit()
+            listings.commit()
+
+        _seed_cards(cards)
+        _seed_users(accounts)
+        ordered_card_ids = _ordered_card_ids(cards)
+        _seed_listings(listings, ordered_card_ids)
+        _seed_wants(listings, ordered_card_ids)
+
+        cards.commit()
+        accounts.commit()
+        listings.commit()
+
+
+def seed_all(db_path=None, reset: bool = False) -> None:
+    """Garante schema e dados de demonstração.
+
+    Sem argumento, usa os três bancos separados. Um ``Mapping`` pode fornecer
+    caminhos alternativos com as chaves ``cards``, ``accounts`` e ``listings``.
+    Um caminho único explícito conserva o modo legado para instalações antigas
+    e para consumidores que ainda esperam todas as tabelas juntas.
+    """
+
+    if db_path is None and (legacy_path := legacy_env_db_path()) is not None:
+        path = init_db(legacy_path)
+        _seed_legacy(path, reset)
+        return
+
+    if db_path is None or isinstance(db_path, Mapping):
+        paths = resolve_db_paths(db_path)
+        init_db(paths)
+        _seed_split(paths, reset)
+        return
+
+    path = init_db(db_path)
+    _seed_legacy(path, reset)
 
 
 if __name__ == "__main__":

@@ -1,16 +1,16 @@
--- O schema usa SQLite e pode ser executado várias vezes sem apagar dados.
+-- Schema legado para instalações que ainda usam um único app.db.
+-- A aplicação nova usa schema_cards.sql, schema_accounts.sql e
+-- schema_listings.sql separadamente; este arquivo só serve para compatibilidade
+-- e migração incremental de bases antigas.
 PRAGMA foreign_keys = ON;
 
--- Versões ficam registradas para que migrações futuras saibam o que já foi aplicado.
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- A versão 1 representa a criação inicial das tabelas principais.
 INSERT OR IGNORE INTO schema_version(version) VALUES (1);
 
--- Uma linha representa uma impressão específica de uma carta.
 CREATE TABLE IF NOT EXISTS cards (
     id INTEGER PRIMARY KEY,
     scryfall_id TEXT NOT NULL UNIQUE,
@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS cards (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Identidade e dados básicos do jogador.
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -39,7 +38,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Oferta de uma impressão que o usuário possui.
 CREATE TABLE IF NOT EXISTS listings (
     id INTEGER PRIMARY KEY,
     card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
@@ -54,7 +52,6 @@ CREATE TABLE IF NOT EXISTS listings (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Desejo de compra/troca. O MVP ainda não expõe uma rota completa para wants.
 CREATE TABLE IF NOT EXISTS wants (
     id INTEGER PRIMARY KEY,
     card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
@@ -66,7 +63,6 @@ CREATE TABLE IF NOT EXISTS wants (
     UNIQUE(card_id, user_id)
 );
 
--- O token bruto nunca é salvo; apenas seu hash é armazenado nesta tabela.
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -75,32 +71,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at INTEGER NOT NULL
 );
 
--- Índice usado pela busca de nomes no seletor de cartas.
-CREATE INDEX IF NOT EXISTS idx_cards_name
-    ON cards(name COLLATE NOCASE);
-
--- Índice usado pelos filtros de coleção e idioma.
-CREATE INDEX IF NOT EXISTS idx_cards_set_lang
-    ON cards(set_code, language);
-
--- Permite agrupar impressões da mesma carta lógica.
-CREATE INDEX IF NOT EXISTS idx_cards_oracle
-    ON cards(oracle_id);
-
--- Índices de localização e filtros das ofertas.
-CREATE INDEX IF NOT EXISTS idx_users_location
-    ON users(state, city);
-CREATE INDEX IF NOT EXISTS idx_listings_card
-    ON listings(card_id);
-CREATE INDEX IF NOT EXISTS idx_listings_mode
-    ON listings(mode);
-
--- Índice usado quando desejos forem cruzados com ofertas no futuro.
-CREATE INDEX IF NOT EXISTS idx_wants_card
-    ON wants(card_id);
-
--- Índices para limpeza e consulta de sessões.
-CREATE INDEX IF NOT EXISTS idx_sessions_user
-    ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_expiry
-    ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_cards_set_lang ON cards(set_code, language);
+CREATE INDEX IF NOT EXISTS idx_cards_oracle ON cards(oracle_id);
+CREATE INDEX IF NOT EXISTS idx_users_location ON users(state, city);
+CREATE INDEX IF NOT EXISTS idx_listings_card ON listings(card_id);
+CREATE INDEX IF NOT EXISTS idx_listings_mode ON listings(mode);
+CREATE INDEX IF NOT EXISTS idx_wants_card ON wants(card_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);

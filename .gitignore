@@ -3,6 +3,9 @@ __pycache__/
 *.db-journal
 *.db-shm
 *.db-wal
+# Bancos separados são gerados pelo seed em cada ambiente local.
+data/*.db
+!data/app.db
 .venv/
 venv/
 .env

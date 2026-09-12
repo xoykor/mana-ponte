@@ -14,7 +14,7 @@ import secrets
 import time
 from pathlib import Path
 
-from .db import get_connection
+from .db import get_accounts_connection
 
 
 # Os padrões mantêm os nomes simples para o protótipo e são aplicados depois
@@ -168,7 +168,7 @@ def create_session(
     now = int(time.time())
     expires_at = now + max(60, ttl)
 
-    connection = get_connection(db_path)
+    connection = get_accounts_connection(db_path)
     try:
         # Limpa sessões antigas sempre que uma nova sessão é criada.
         connection.execute("DELETE FROM sessions WHERE expires_at<=?", (now,))
@@ -204,7 +204,7 @@ def get_session(
     if not token:
         return None
 
-    connection = get_connection(db_path)
+    connection = get_accounts_connection(db_path)
     try:
         row = connection.execute(
             """
@@ -246,7 +246,7 @@ def revoke_session(token: str | None, db_path: str | Path | None = None) -> bool
     if not token:
         return False
 
-    connection = get_connection(db_path)
+    connection = get_accounts_connection(db_path)
     try:
         cursor = connection.execute(
             "DELETE FROM sessions WHERE token_hash = ?",
@@ -265,7 +265,7 @@ def delete_expired_sessions(
     """Exclui sessões expiradas e retorna quantas foram removidas."""
 
     reference_time = now or int(time.time())
-    connection = get_connection(db_path)
+    connection = get_accounts_connection(db_path)
     try:
         cursor = connection.execute(
             "DELETE FROM sessions WHERE expires_at <= ?",

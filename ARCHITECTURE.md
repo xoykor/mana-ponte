@@ -12,8 +12,10 @@ Navegador
   └─ HTTP/JSON
           ↓
 Servidor/API (app/server.py)
-  ├─ cadastro, sessões e CSRF ─────→ SQLite (users, sessions)
-  ├─ catálogo e ofertas ───────────→ SQLite (cards, listings, wants)
+  ├─ cadastro, sessões e CSRF ─────→ data/accounts.db
+  ├─ catálogo ─────────────────────→ data/cards.db
+  ├─ ofertas e desejos ─────────────→ data/listings.db
+  │                                  (cards.db e accounts.db anexados nas consultas)
   ├─ arquivos estáticos
   └─ rate limiting de login em memória
           ↑
@@ -26,7 +28,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 ## Limites dos módulos
 
-- `db.py`: resolve caminhos, abre conexões, ativa chaves estrangeiras e aplica o schema versionado. Não contém regras HTTP.
+- `db.py`: resolve caminhos, abre conexões, ativa chaves estrangeiras, anexa os bancos necessários e aplica os schemas versionados. Não contém regras HTTP.
 - `auth.py`: normaliza identidades, deriva senhas com `scrypt` e administra sessões opacas. Não conhece HTTP.
 - `catalog.py`: converte objetos Scryfall em impressões locais e realiza upsert em lotes. Não conhece anúncios.
 - `seed.py`: fixture determinístico para demonstração e testes; não acessa rede.
@@ -36,12 +38,10 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 ## Modelo de dados
 
-- `cards`: uma linha por impressão (`scryfall_id`). `oracle_id` permite agrupar reimpressões da mesma carta; coleção, número, idioma e arte distinguem o exemplar anunciado.
-- `users`: identidade, localização, hash de senha e estado de verificação do jogador.
-- `sessions`: somente o hash SHA-256 do token, vínculo com usuário, CSRF e expiração.
-- `listings`: o que um usuário possui, com condição, idioma, modalidade e preço opcional.
-- `wants`: o que um usuário procura e seus limites. No MVP, `/matches` consulta ofertas por impressão; a evolução cruza `wants` e `listings` automaticamente.
-- `schema_version`: base para migrações incrementais.
+- `cards` (`data/cards.db`): uma linha por impressão (`scryfall_id`). `oracle_id` permite agrupar reimpressões da mesma carta; coleção, número, idioma e arte distinguem o exemplar anunciado.
+- `users` e `sessions` (`data/accounts.db`): identidade, localização, hash de senha, estado de verificação e sessões cujo token bruto nunca é persistido.
+- `listings` e `wants` (`data/listings.db`): o que um usuário possui ou procura, com condição, idioma, modalidade e preço opcional.
+- `schema_version`: base para migrações incrementais em cada arquivo. Como SQLite não aplica chaves estrangeiras entre arquivos anexados, a API valida a existência da carta e a sessão valida a existência do usuário antes de gravar ofertas.
 
 Índices cobrem busca por nome, coleção/idioma, `oracle_id`, localização e relações de ofertas/desejos.
 
@@ -51,7 +51,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 1. A interface envia nome, coleção, UF e modalidade.
 2. A API monta somente cláusulas permitidas e usa parâmetros SQL.
-3. `cards` identifica a impressão e `listings` une oferta, usuário e localização.
+3. `cards.db` identifica a impressão; a conexão de `listings.db` anexa `cards.db` e `accounts.db` para unir oferta, usuário e localização.
 4. A resposta retorna URLs de imagem do Scryfall e metadados da oferta.
 
 ### Sincronização do catálogo
@@ -60,7 +60,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 2. O JSON é baixado temporariamente ou fornecido por `--file`.
 3. Registros digitais são descartados; cartas dupla-face usam a imagem da primeira face disponível.
 4. Lotes de 500 são inseridos/atualizados por `scryfall_id`.
-5. Anúncios permanecem ligados ao ID local estável da impressão existente.
+5. Anúncios permanecem ligados ao ID local estável da impressão existente; a consistência entre arquivos é garantida pela aplicação.
 
 ### Criação de oferta
 
@@ -73,7 +73,7 @@ O corpo é limitado a 32 KiB; IDs, enumerações, tamanho de texto e preço são
 3. Cadastro ou login gera token opaco e CSRF independentes. O token bruto existe somente no cookie `HttpOnly`; o banco guarda seu SHA-256.
 4. `/api/auth/me` recupera identidade e CSRF. Logout e comandos mutáveis exigem o cabeçalho CSRF.
 5. Cinco falhas de login por IP e identificador em 15 minutos bloqueiam novas tentativas naquela instância.
-6. A migração v2 adiciona campos sem remover contas existentes; uma estrutura de sessão antiga é revogada por ser efêmera.
+6. A migração v2 adiciona campos sem remover contas existentes; uma estrutura de sessão antiga é revogada por ser efêmera. Bases antigas de arquivo único continuam aceitas quando um caminho explícito é fornecido.
 
 ## Segurança e produção
 
