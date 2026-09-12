@@ -80,6 +80,17 @@ class CatalogTest(unittest.TestCase):
             )
 
             self.assertEqual(import_file(source, db, batch_size=1), 1)
+
+            with closing(get_connection(db)) as conn:
+                stable_id = conn.execute(
+                    "SELECT id FROM cards WHERE scryfall_id = 'id-1'"
+                ).fetchone()[0]
+
+            # Uma atualização do mesmo bulk preserva a chave local usada por
+            # listings e altera apenas os metadados da impressão.
+            updated = json.loads(source.read_text(encoding="utf-8"))
+            updated[0]["name"] = "Sol Ring atualizado"
+            source.write_text(json.dumps(updated), encoding="utf-8")
             self.assertEqual(import_file(source, db, batch_size=1), 1)
 
             with closing(get_connection(db)) as conn:
@@ -87,6 +98,11 @@ class CatalogTest(unittest.TestCase):
                     conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0],
                     1,
                 )
+                row = conn.execute(
+                    "SELECT id, name FROM cards WHERE scryfall_id = 'id-1'"
+                ).fetchone()
+                self.assertEqual(row[0], stable_id)
+                self.assertEqual(row[1], "Sol Ring atualizado")
 
     def test_search_scryfall_follows_all_result_pages(self):
         """A busca remota percorre as páginas seguintes do Scryfall."""

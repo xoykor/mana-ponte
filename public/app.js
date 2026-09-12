@@ -34,6 +34,12 @@ let mode = "";
 let currentUser = null;
 let csrfToken = null;
 let cardPicker = null;
+const LISTINGS_PAGE_SIZE = 24;
+let listingsPage = 1;
+let listingsTotal = 0;
+let listingsLimit = LISTINGS_PAGE_SIZE;
+let listingsRequestId = 0;
+let listingsController = null;
 
 
 /**
@@ -43,11 +49,58 @@ let cardPicker = null;
  * Mesmo em uma tela simples, escapar esses valores evita que um nome com
  * caracteres especiais seja interpretado como marcação HTML.
  */
-const esc = value => {
-  const node = document.createElement("span");
-  node.textContent = value ?? "";
-  return node.innerHTML;
-};
+const esc = value => String(value ?? "").replace(/[&<>"']/g, character => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#039;",
+}[character]));
+
+
+/**
+ * Aceita somente URLs de contato com protocolo web e host não vazio.
+ *
+ * O backend faz a mesma validação. Repeti-la aqui impede que uma resposta
+ * malformada ou um anúncio salvo por uma versão antiga vire um link perigoso
+ * no navegador.
+ */
+function safeContactUrl(value) {
+  const input = String(value ?? "").trim();
+
+  if (!input) {
+    return "";
+  }
+
+  if ([...input].some(character =>
+    character === "\\" ||
+    /\s/.test(character) ||
+    character.charCodeAt(0) < 0x20 ||
+    character.charCodeAt(0) === 0x7f
+  )) {
+    return null;
+  }
+
+  try {
+    const url = new URL(input);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      !url.hostname ||
+      url.hostname.replace(/\./g, "") === ""
+    ) {
+      return null;
+    }
+
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+
+function cardLanguage(card) {
+  return String(card?.language || card?.lang || "en").trim() || "en";
+}
 
 
 /**
@@ -115,38 +168,93 @@ function money(cents) {
 /**
  * Desenha a lista de ofertas depois que os filtros terminam de carregar.
  */
-function renderListings(listings) {
-  const countLabel = listings.length === 1
+function renderListings(listings, pagination = {}) {
+  const entries = Array.isArray(listings) ? listings : [];
+  const rawTotal = Number(pagination.total);
+  const total = Number.isFinite(rawTotal) && rawTotal >= 0
+    ? rawTotal
+    : entries.length;
+  const rawPage = Number(pagination.page);
+  const page = Number.isFinite(rawPage) && rawPage > 0
+    ? Math.floor(rawPage)
+    : 1;
+  const rawLimit = Number(pagination.limit);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0
+    ? Math.floor(rawLimit)
+    : Math.max(entries.length, LISTINGS_PAGE_SIZE);
+
+  listingsPage = page;
+  listingsTotal = total;
+  listingsLimit = limit;
+
+  const countLabel = total === 1
     ? "oferta encontrada"
     : "ofertas encontradas";
 
-  $("#status").textContent = `${listings.length} ${countLabel}`;
+  $("#status").textContent = `${total} ${countLabel}`;
 
-  if (!listings.length) {
+  const paginationView = $("#listingPagination");
+  if (paginationView) {
+    const pageCount = total ? Math.ceil(total / limit) : 1;
+    paginationView.hidden = pageCount <= 1;
+    $("#previousListings").disabled = page <= 1;
+    $("#nextListings").disabled = page >= pageCount;
+    $("#listingPage").textContent = `Página ${page} de ${pageCount}`;
+  }
+
+  if (!entries.length) {
     $("#listings").innerHTML =
       "<p>Nenhuma oferta com esses filtros. Tente ampliar a região.</p>";
     return;
   }
 
-  $("#listings").innerHTML = listings.map(item => `
-    <article class="listing">
-      <img loading="lazy" src="${esc(item.image_url)}" alt="${esc(item.name)}">
-      <div>
-        <span class="badge">${esc(item.mode)}</span>
-        <h3>${esc(item.name)}</h3>
-        <div class="meta">
-          ${esc(item.set_code.toUpperCase())} ·
-          ${esc(item.condition)} ·
-          ${esc(item.language.toUpperCase())}
+  $("#listings").innerHTML = entries.map(item => {
+    const name = String(item.name ?? "").trim();
+    const title = String(item.title ?? "").trim();
+    const description = String(item.description ?? "").trim();
+    const contact = safeContactUrl(item.contact_url);
+    const heading = title || name || "Oferta";
+    const cardName = title && name && title !== name
+      ? `<p class="card-name">${esc(name)}</p>`
+      : "";
+    const descriptionMarkup = description
+      ? `<p class="description">${esc(description)}</p>`
+      : "";
+    const contactMarkup = contact
+      ? `<a
+          class="contact"
+          href="${esc(contact)}"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Abrir contato"
+        >${esc(contact)}</a>`
+      : "";
+    const setCode = String(item.set_code ?? "").toUpperCase();
+    const language = String(item.language || "en").toUpperCase();
+
+    return `
+      <article class="listing">
+        <img loading="lazy" src="${esc(item.image_url)}" alt="${esc(name)}">
+        <div>
+          <span class="badge">${esc(item.mode)}</span>
+          <h3>${esc(heading)}</h3>
+          ${cardName}
+          <div class="meta">
+            ${esc(setCode)} ·
+            ${esc(item.condition)} ·
+            ${esc(language)}
+          </div>
+          <div class="price">${money(item.price_cents)}</div>
+          ${descriptionMarkup}
+          <div class="meta">
+            ${esc(item.city)} · ${esc(item.state)}<br>
+            por ${esc(item.display_name)}
+          </div>
+          ${contactMarkup}
         </div>
-        <div class="price">${money(item.price_cents)}</div>
-        <div class="meta">
-          ${esc(item.city)} · ${esc(item.state)}<br>
-          por ${esc(item.display_name)}
-        </div>
-      </div>
-    </article>
-  `).join("");
+      </article>
+    `;
+  }).join("");
 }
 
 
@@ -169,24 +277,37 @@ function filters() {
  * No modo estático filtramos os JSONs diretamente no navegador. No modo
  * completo enviamos os mesmos filtros para a API do servidor.
  */
-async function loadListings() {
+async function loadListings({ page = 1 } = {}) {
   $("#status").textContent = "Buscando na comunidade…";
 
-  try {
-    const selected = filters();
+  const selected = filters();
+  const requestedPage = Math.max(1, Math.floor(Number(page) || 1));
+  const currentRequest = ++listingsRequestId;
 
+  if (listingsController) {
+    listingsController.abort();
+    listingsController = null;
+  }
+
+  try {
     if (STATIC_MODE) {
       // Os anúncios locais aparecem antes dos anúncios de exemplo.
       const all = [...savedListings(), ...staticListings];
-      const normalizedCard = selected.card.toLowerCase();
+      const normalizedCard = selected.card.toLocaleLowerCase();
       const filtered = all.filter(item =>
-        (!selected.card || item.name.toLowerCase().includes(normalizedCard)) &&
+        (!selected.card ||
+          String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
         (!selected.set || item.set_code === selected.set) &&
         (!selected.state || item.state === selected.state) &&
         (!selected.mode || item.mode === selected.mode)
       );
 
-      renderListings(filtered);
+      listingsPage = 1;
+      renderListings(filtered, {
+        page: 1,
+        limit: Math.max(filtered.length, LISTINGS_PAGE_SIZE),
+        total: filtered.length,
+      });
       return;
     }
 
@@ -197,10 +318,30 @@ async function loadListings() {
         query.set(key, value);
       }
     });
+    query.set("page", String(requestedPage));
+    query.set("limit", String(LISTINGS_PAGE_SIZE));
 
-    const data = await getJson(`/api/listings?${query}`);
-    renderListings(data.listings);
+    const controller = new AbortController();
+    listingsController = controller;
+    const data = await getJson(`/api/listings?${query}`, {
+      signal: controller.signal,
+    });
+
+    // Uma busca nova pode ter terminado enquanto esta resposta chegava.
+    if (currentRequest !== listingsRequestId) {
+      return;
+    }
+
+    if (listingsController === controller) {
+      listingsController = null;
+    }
+    renderListings(data.listings, data);
   } catch (error) {
+    if (error.name === "AbortError" || currentRequest !== listingsRequestId) {
+      return;
+    }
+
+    listingsController = null;
     // O texto do erro é mostrado no mesmo lugar onde ficaria o resultado.
     $("#status").textContent = error.message;
   }
@@ -320,6 +461,21 @@ $("#searchForm").addEventListener("submit", event => {
   loadListings();
 });
 
+$("#previousListings")?.addEventListener("click", () => {
+  if (listingsPage > 1) {
+    loadListings({ page: listingsPage - 1 });
+  }
+});
+
+$("#nextListings")?.addEventListener("click", () => {
+  const pageCount = listingsTotal
+    ? Math.ceil(listingsTotal / listingsLimit)
+    : 1;
+  if (listingsPage < pageCount) {
+    loadListings({ page: listingsPage + 1 });
+  }
+});
+
 // Os chips alteram o filtro de modalidade e destacam o botão ativo.
 document.querySelectorAll(".chip").forEach(button => {
   button.addEventListener("click", () => {
@@ -381,6 +537,15 @@ $("#listingForm").addEventListener("submit", async event => {
     return;
   }
 
+  const contactUrl = safeContactUrl(form.contact_url);
+  if (contactUrl === null) {
+    $("#formStatus").textContent =
+      "Informe um contato HTTP(S) válido com endereço de host, " +
+      "ou deixe o campo vazio.";
+    $("[name='contact_url']")?.focus();
+    return;
+  }
+
   // A API armazena preço como inteiro em centavos para evitar arredondamento
   // inesperado de números decimais no banco.
   const payload = {
@@ -391,8 +556,9 @@ $("#listingForm").addEventListener("submit", async event => {
       ? Math.round(Number(form.price) * 100)
       : null,
     condition: form.condition,
-    language: "en",
+    language: cardLanguage(card),
     mode: form.mode,
+    contact_url: contactUrl,
   };
 
   try {

@@ -60,9 +60,23 @@ def default_cards_uri() -> str:
 
     # O Scryfall pode publicar vários tipos de arquivos. Para o catálogo de
     # papel precisamos especificamente do item chamado ``default_cards``.
-    for item in payload.get("data", []):
-        if item.get("type") == "default_cards" and item.get("download_uri"):
-            return item["download_uri"]
+    if not isinstance(payload, dict):
+        raise RuntimeError("Scryfall retornou metadados inválidos de Bulk Data")
+
+    items = payload.get("data")
+    if not isinstance(items, list):
+        raise RuntimeError("Scryfall retornou uma lista de Bulk Data inválida")
+
+    for item in items:
+        if not isinstance(item, dict) or item.get("type") != "default_cards":
+            continue
+
+        # O Scryfall publica JSONL gzip em ``jsonl_download_uri`` atualmente,
+        # mas instalações/fixtures antigas ainda podem fornecer o array em
+        # ``download_uri``. O parser aceita ambos os formatos.
+        download_uri = item.get("jsonl_download_uri") or item.get("download_uri")
+        if download_uri:
+            return download_uri
 
     # Se o formato da resposta mudar, falhar explicitamente é mais seguro do
     # que tentar baixar uma URL inexistente ou importar dados errados.

@@ -19,7 +19,7 @@ Servidor/API (app/server.py)
   ├─ arquivos estáticos
   └─ rate limiting de login em memória
           ↑
-Catálogo (app/catalog.py) ← default_cards JSON ← Scryfall Bulk Data
+Catálogo (app/catalog.py) ← default_cards JSON/JSONL (gzip ou texto) ← Scryfall Bulk Data
           ↑
 Seed offline (app/seed.py)
 ```
@@ -35,6 +35,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 - `server.py`: traduz HTTP em consultas/comandos, limita entradas, serve a interface e pode enriquecer buscas do catálogo sob demanda via Scryfall.
 - `public/`: apresentação e interação. Não contém dados autoritativos.
 - `scripts/import_scryfall.py`: adaptador de rede e CLI para Bulk Data.
+- `scripts/import_allcards.py`: adaptador de rede para importar um tipo de Bulk Data escolhido, reutilizando o parser incremental.
 
 ## Modelo de dados
 
@@ -54,13 +55,36 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 3. `cards.db` identifica a impressão; a conexão de `listings.db` anexa `cards.db` e `accounts.db` para unir oferta, usuário e localização.
 4. A resposta retorna URLs de imagem do Scryfall e metadados da oferta.
 
+`GET /api/cards` sempre informa `page`, `limit`, `total` e `source`. O limite
+aceito é positivo e fica restrito a 100 registros por resposta. Consultas com
+três ou mais caracteres podem buscar todas as páginas do Scryfall; o cache
+remoto tem no máximo 256 entradas, expira em cinco minutos e compartilha uma
+consulta enquanto ela está em voo.
+
+`GET /api/listings` usa os mesmos campos de paginação e conta o total depois
+dos filtros. A ordenação por `created_at DESC, id DESC` mantém páginas
+repetíveis enquanto os dados não mudam. Cada anúncio devolve título,
+descrição, idioma, preço e `contact_url`; a URL de contato só pode ser vazia
+ou usar HTTP(S) com host válido, com limite de 300 caracteres.
+
 ### Sincronização do catálogo
 
-1. A CLI consulta `/bulk-data` e seleciona o objeto `default_cards`.
+1. A CLI consulta `/bulk-data` e seleciona o objeto `default_cards` (ou o tipo solicitado pelo adaptador `import_allcards.py`).
 2. O JSON é baixado temporariamente ou fornecido por `--file`.
-3. Registros digitais são descartados; cartas dupla-face usam a imagem da primeira face disponível.
-4. Lotes de 500 são inseridos/atualizados por `scryfall_id`.
-5. Anúncios permanecem ligados ao ID local estável da impressão existente; a consistência entre arquivos é garantida pela aplicação.
+3. O parser aceita JSONL ou array JSON, gzip ou texto simples, e lê um registro por vez. Registros digitais, incompletos, não-objeto e linhas inválidas são descartados com contagem no relatório.
+4. A normalização escolhe a primeira variante disponível na ordem `normal`, `large`, `png`, `small`, `art_crop`, `border_crop`, considerando a carta e suas faces.
+5. Lotes de 500 são inseridos/atualizados por `scryfall_id`.
+6. Anúncios permanecem ligados ao ID local estável da impressão existente; a consistência entre arquivos é garantida pela aplicação.
+
+### Interface pública
+
+No servidor Python, `public/app.js` consulta as rotas da API. O seletor de
+impressões envia `q`, `page` e `limit`, cancela consultas anteriores e ignora
+respostas que chegaram depois de uma busca mais nova. No GitHub Pages ou com
+`?static`, a página usa os JSONs versionados e guarda novas ofertas somente no
+`localStorage`; esse modo não tem cadastro, sessão nem persistência
+compartilhada. A renderização escapa campos de catálogo e anúncios e só cria
+links de contato depois de validar HTTP(S).
 
 ### Criação de oferta
 
@@ -77,7 +101,7 @@ O corpo é limitado a 32 KiB; IDs, enumerações, tamanho de texto e preço são
 
 ## Segurança e produção
 
-O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSite`, expiração, CSRF, consultas parametrizadas e rate limiting de login. Antes de exposição pública, ainda são necessários:
+O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSite`, expiração, CSRF, consultas parametrizadas, rate limiting de login e validação de URLs de contato. Antes de exposição pública, ainda são necessários:
 
 1. HTTPS com cookie `Secure`, gestão externa de segredos e proxy reverso robusto;
 2. recuperação de senha, verificação de e-mail, MFA opcional e política contra senhas vazadas;
@@ -86,7 +110,8 @@ O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSi
 5. denúncias, reputação e regras contra fraude;
 6. PostgreSQL, migrações formais e rate limiting compartilhado (Redis ou equivalente);
 7. jobs agendados e observáveis para sincronização incremental do Scryfall;
-8. armazenamento de fotos do exemplar do usuário separado da imagem oficial da carta.
+8. armazenamento de fotos do exemplar do usuário separado da imagem oficial da carta;
+9. caso seja necessário, um job separado e autorizado para preparar cópias locais de imagens; o protótipo não faz coleta em massa.
 
 ## Caminho de evolução
 

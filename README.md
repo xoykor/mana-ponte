@@ -23,7 +23,8 @@ Se a porta estiver ocupada: `MANAPONTE_PORT=8001 ./scripts/dev.sh`.
 
 Conta local de desenvolvimento: `danton` / `ManaPonte!2026`. Essa credencial é exclusivamente um fixture público; nunca a reutilize em produção.
 
-Testes offline:
+Testes offline (os testes HTTP usam bancos temporários e, quando executados fora
+do sandbox, uma porta local efêmera):
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -43,7 +44,22 @@ Ou, se o arquivo `default_cards` já foi baixado:
 python3 scripts/import_scryfall.py --file /caminho/default-cards.json
 ```
 
-O importador descobre o `download_uri` atual no endpoint Bulk Data, identifica o cliente por User-Agent, ignora cartas exclusivamente digitais, reconhece imagens de cartas dupla-face e faz upsert a cada 500 registros. O protótipo armazena URLs, não cópias das imagens. O uso público/comercial deve respeitar as políticas de dados e imagens do Scryfall e da Wizards of the Coast.
+O importador descobre o `jsonl_download_uri` atual no endpoint Bulk Data e usa
+`download_uri` como fallback para metadados antigos. Ele identifica o cliente
+por User-Agent, aceita JSONL ou array JSON, comprimido com gzip ou em texto
+simples, e decodifica os registros incrementalmente. Cartas exclusivamente
+digitais e entradas inválidas são ignoradas; o relatório final informa
+`importadas`, `ignoradas` e `invalidas`. O upsert acontece em lotes de 500 por
+`scryfall_id`, preservando o ID local usado pelos anúncios. O protótipo
+armazena URLs, não cópias das imagens. O uso público/comercial deve respeitar
+as políticas de dados e imagens do Scryfall e da Wizards of the Coast.
+
+Para importar outro tipo de Bulk Data, como `all_cards`, use o adaptador
+opcional:
+
+```bash
+python3 scripts/import_allcards.py --type all_cards
+```
 
 Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consulta o endpoint de busca do Scryfall, percorre todas as páginas retornadas e grava as impressões encontradas em `data/cards.db`. Para operar somente com o catálogo local, use `MANAPONTE_REMOTE_SEARCH=0`.
 
@@ -56,9 +72,9 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/auth/login` | Autentica e cria sessão |
 | GET | `/api/auth/me` | Retorna usuário e token CSRF da sessão |
 | POST | `/api/auth/logout` | Revoga a sessão; exige CSRF |
-| GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo |
+| GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo; retorna `cards`, `page`, `limit`, `total` e `source` |
 | GET | `/api/sets` | Coleções e contagem de impressões |
-| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=` | Ofertas filtradas |
+| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&page=&limit=` | Ofertas filtradas e paginadas; retorna `listings`, `page`, `limit` e `total` |
 | POST | `/api/listings` | Cria uma oferta validada |
 | GET | `/api/matches?card_id=` | Ofertas compatíveis para uma impressão |
 
@@ -71,11 +87,16 @@ Exemplo de criação:
   "price_cents": 2500,
   "condition": "NM",
   "language": "en",
-  "mode": "ambos"
+  "mode": "ambos",
+  "contact_url": "https://exemplo.com/contato"
 }
 ```
 
 Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/me`. O backend ignora qualquer `user_id` do cliente e atribui a oferta ao usuário da sessão.
+
+`contact_url` pode ser vazio ou usar somente `http`/`https` com host válido e no
+máximo 300 caracteres. O idioma da oferta é o idioma da impressão selecionada;
+ele é devolvido pela listagem junto com título, descrição, preço e contato.
 
 Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
@@ -88,6 +109,7 @@ app/                 domínio, autenticação, SQLite, catálogo e servidor HTTP
 public/              interface responsiva sem framework
 scripts/dev.sh       seed + servidor local
 scripts/import_scryfall.py
+scripts/import_allcards.py
 tests/               API real, banco e importador sem rede
 data/cards.db        catálogo local gerado
 data/accounts.db     usuários e sessões locais
@@ -102,9 +124,10 @@ caminho explicitamente ou definir essa variável sem as variáveis específicas.
 
 - sem recuperação de senha, verificação de e-mail, MFA, chat, reputação ou moderação;
 - sem pagamentos, frete ou custódia da transação;
-- o carregamento do grande JSON Scryfall ocorre em memória antes do upsert em lotes;
+- a importação do Bulk Data é incremental, mas mantém um lote de até 500 tuplas normalizadas em memória;
+- a busca remota usa cache em memória limitado a 256 consultas, com TTL de cinco minutos e deduplicação de chamadas simultâneas;
 - SQLite e o servidor da biblioteca padrão são adequados ao esboço, não à operação pública;
-- imagens dependem de conexão e da disponibilidade do Scryfall.
+- imagens dependem de conexão e da disponibilidade do Scryfall; a coleta em massa de imagens locais é uma opção futura e não faz parte do protótipo;
 - no GitHub Pages não há persistência compartilhada: para contas e anúncios reais, o frontend deverá apontar para uma API hospedada separadamente.
 
 Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.

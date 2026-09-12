@@ -94,9 +94,16 @@ BRAZIL_STATES = {
 # diferença seja facilmente percebida pelo tempo de resposta.
 DUMMY_PASSWORD_HASH = hash_password("InvalidAccount!2026")
 
-# Busca remota é armazenada por alguns minutos para não repetir a mesma
-# chamada ao Scryfall em cada tecla digitada no seletor de cartas.
+# Busca remota é armazenada em memória para não repetir a mesma chamada ao
+# Scryfall em cada tecla digitada no seletor de cartas. O conjunto é limitado
+# e elimina chamadas duplicadas enquanto uma consulta ainda está em voo.
+REMOTE_CARD_CACHE_MAX_ENTRIES = 256
 REMOTE_CARD_CACHE: dict[tuple[str, str, str], tuple[float, list[tuple]]] = {}
+# Idade (tempo monotônico) de cada entrada, usada para evictar a mais antiga.
+REMOTE_CARD_CACHE_AGE: dict[tuple[str, str, str], float] = {}
+# Resultados de consultas ainda em voo, compartilhados entre requisições
+# idênticas para deduplicar chamadas concorrentes à API remota.
+REMOTE_CARD_CACHE_PENDING: dict[tuple[str, str, str], threading.Event] = {}
 REMOTE_CARD_CACHE_LOCK = threading.Lock()
 REMOTE_CARD_CACHE_TTL = 300
 
@@ -109,40 +116,136 @@ def remote_search_enabled() -> bool:
     return configured_value.lower() not in disabled_values
 
 
+def _remote_cache_key(
+    query: str,
+    set_code: str | None,
+    language: str | None,
+) -> tuple[str, str, str]:
+    """Chave de cache normalizada para consultas equivalentes baterem."""
+
+    return (
+        query.strip().lower(),
+        (set_code or "").lower(),
+        (language or "").lower(),
+    )
+
+
+def _remote_remove_expired_locked(now: float) -> None:
+    """Remove entradas expiradas; o chamador já deve possuir o lock."""
+
+    expired_keys = [
+        key
+        for key, (expires_at, _result) in REMOTE_CARD_CACHE.items()
+        if expires_at <= now
+    ]
+    for key in expired_keys:
+        REMOTE_CARD_CACHE.pop(key, None)
+        REMOTE_CARD_CACHE_AGE.pop(key, None)
+        pending_event = REMOTE_CARD_CACHE_PENDING.pop(key, None)
+        if pending_event is not None:
+            # Uma entrada expirada não pode deixar um evento órfão prendendo
+            # aguardantes; uma nova chamada poderá iniciar outra geração.
+            pending_event.set()
+
+
+def _remote_evict_oldest_locked() -> None:
+    """Mantém o cache no limite; o chamador já deve possuir o lock."""
+
+    while len(REMOTE_CARD_CACHE) > REMOTE_CARD_CACHE_MAX_ENTRIES:
+        oldest_key = min(
+            REMOTE_CARD_CACHE,
+            key=lambda key: REMOTE_CARD_CACHE_AGE.get(key, 0.0),
+        )
+        REMOTE_CARD_CACHE.pop(oldest_key, None)
+        REMOTE_CARD_CACHE_AGE.pop(oldest_key, None)
+
+        # Em condições normais consultas pendentes ainda não estão no cache,
+        # mas liberar o evento aqui evita deixar um aguardante bloqueado se
+        # os mapas forem alterados durante uma evicção.
+        pending_event = REMOTE_CARD_CACHE_PENDING.pop(oldest_key, None)
+        if pending_event is not None:
+            pending_event.set()
+
+
+def _remote_evict_oldest() -> None:
+    """Mantém o cache no limite, podendo ser chamada por testes e diagnósticos."""
+
+    with REMOTE_CARD_CACHE_LOCK:
+        _remote_evict_oldest_locked()
+
+
 def remote_cards(
     query: str,
     set_code: str | None = None,
     language: str | None = None,
 ) -> list[tuple]:
-    """Busca cartas remotamente, reutilizando respostas recentes em memória."""
+    """Busca cartas remotamente com cache limitado e deduplicação em voo."""
 
-    cache_key = (
-        query.strip().lower(),
-        (set_code or "").lower(),
-        (language or "").lower(),
-    )
-    now = time.monotonic()
-
-    # O lock protege apenas a leitura curta do dicionário; nunca seguramos o
-    # lock durante uma chamada de rede lenta.
+    cache_key = _remote_cache_key(query, set_code, language)
     with REMOTE_CARD_CACHE_LOCK:
+        now = time.monotonic()
+        _remote_remove_expired_locked(now)
         cached = REMOTE_CARD_CACHE.get(cache_key)
-        if cached and cached[0] > now:
+        if cached is not None and cached[0] > now:
+            # Atualiza a idade para que entradas recentes não sejam evitadas.
+            REMOTE_CARD_CACHE_AGE[cache_key] = now
             return cached[1]
 
+        event = REMOTE_CARD_CACHE_PENDING.get(cache_key)
+        is_fetcher = event is None
+        if is_fetcher:
+            # A criação e a consulta do evento acontecem no mesmo trecho
+            # protegido. Assim, apenas uma requisição se torna responsável por
+            # chamar a API remota mesmo sob concorrência.
+            event = threading.Event()
+            REMOTE_CARD_CACHE_PENDING[cache_key] = event
+
+    if not is_fetcher:
+        # Outra requisição já está buscando esta mesma consulta. Aguarda o
+        # resultado compartilhado em vez de repetir a chamada à API remota.
+        completed = event.wait(timeout=REMOTE_CARD_CACHE_TTL)
+        with REMOTE_CARD_CACHE_LOCK:
+            if not completed and REMOTE_CARD_CACHE_PENDING.get(cache_key) is event:
+                # Um fetcher que ultrapassou o TTL não deve manter novas
+                # requisições presas para sempre. O fetcher original verifica
+                # a identidade antes de gravar o resultado, então uma nova
+                # geração pode assumir a consulta com segurança.
+                REMOTE_CARD_CACHE_PENDING.pop(cache_key, None)
+                event.set()
+            cached = REMOTE_CARD_CACHE.get(cache_key)
+            now = time.monotonic()
+            if cached is not None and cached[0] > now:
+                REMOTE_CARD_CACHE_AGE[cache_key] = now
+                return cached[1]
+        # Falhas, expiração ou evicção não devem transformar o sinal em uma
+        # resposta antiga. O resultado vazio mantém o contrato da busca.
+        return []
+
+    found_cards: list[tuple] = []
     try:
         found_cards = search_scryfall(query, set_code, language)
     except Exception as error:  # A API local deve continuar útil sem Scryfall.
         print(f"Busca remota do catálogo indisponível: {error}")
-        found_cards = []
 
-    # Mesmo uma resposta vazia é armazenada por alguns minutos para evitar
-    # repetir uma consulta que acabou de falhar ou não encontrou cartas.
-    with REMOTE_CARD_CACHE_LOCK:
-        REMOTE_CARD_CACHE[cache_key] = (
-            now + REMOTE_CARD_CACHE_TTL,
-            found_cards,
-        )
+    finally:
+        # O evento sempre é sinalizado, inclusive quando a API remota falha.
+        # A identidade impede que uma evicção seguida de uma nova consulta
+        # apague o evento da geração mais recente.
+        with REMOTE_CARD_CACHE_LOCK:
+            pending_event = REMOTE_CARD_CACHE_PENDING.get(cache_key)
+            try:
+                if pending_event is event:
+                    cached_at = time.monotonic()
+                    REMOTE_CARD_CACHE[cache_key] = (
+                        cached_at + REMOTE_CARD_CACHE_TTL,
+                        found_cards,
+                    )
+                    REMOTE_CARD_CACHE_AGE[cache_key] = cached_at
+                    _remote_evict_oldest_locked()
+            finally:
+                if pending_event is event:
+                    REMOTE_CARD_CACHE_PENDING.pop(cache_key, None)
+                event.set()
 
     return found_cards
 
@@ -197,6 +300,49 @@ def positive_int(value, default: int, maximum: int) -> int:
         return max(1, min(int(value), maximum))
     except (TypeError, ValueError):
         return default
+
+
+def valid_contact_url(value: object) -> bool:
+    """Informa se o contato é vazio ou uma URL HTTP(S) com host válido."""
+
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+
+    candidate = value.strip()
+    if not candidate:
+        return True
+
+    # Espaços, controles e barras invertidas podem ser reinterpretados pelo
+    # navegador e alterar a autoridade efetiva da URL.
+    if any(
+        character.isspace()
+        or ord(character) < 0x20
+        or ord(character) == 0x7F
+        for character in candidate
+    ) or "\\" in candidate:
+        return False
+
+    try:
+        parsed = urlsplit(candidate)
+        hostname = parsed.hostname
+        # Ler ``port`` também valida portas malformadas ou fora do intervalo.
+        parsed.port
+    except ValueError:
+        return False
+
+    if parsed.scheme.lower() not in {"http", "https"} or not hostname:
+        return False
+
+    # ``urlsplit`` aceita alguns valores que não representam um host útil,
+    # como apenas pontuação ou caracteres percent-encoded no host.
+    if hostname.strip(".") == "" or any(
+        character.isspace() or character in "/?#\\%" for character in hostname
+    ):
+        return False
+
+    return True
 
 
 def rows(cursor) -> list[dict]:
@@ -716,6 +862,9 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 clauses.append(sql)
                 values.append(converter(query_params[key]))
 
+        page = positive_int(query_params.get("page"), 1, 100000)
+        limit = positive_int(query_params.get("limit"), 24, 100)
+
         if query_params.get("card"):
             clauses.append("c.name LIKE ? COLLATE NOCASE")
             values.append(f"%{query_params['card'][:100]}%")
@@ -723,42 +872,53 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         cards_table = self.cards_table()
         users_table = self.users_table()
-        sql = (
-            f"""
-            SELECT
-                l.id,
-                l.card_id,
-                c.name,
-                c.set_code,
-                c.set_name,
-                c.image_url,
-                u.username,
-                u.display_name,
-                u.city,
-                u.state,
-                l.title,
-                l.description,
-                l.price_cents,
-                l.condition,
-                l.language,
-                l.mode,
-                l.contact_url,
-                l.created_at
-            FROM listings AS l
-            JOIN {cards_table} AS c ON c.id = l.card_id
-            JOIN {users_table} AS u ON u.id = l.user_id
-            """
-            + where
-            + " ORDER BY l.created_at DESC, l.id DESC"
-        )
 
         connection = self.listings_connection()
         try:
+            # Contagem total respeita os filtros, para paginação sem perdas.
+            total = connection.execute(
+                f"SELECT COUNT(*) FROM listings AS l "
+                f"JOIN {cards_table} AS c ON c.id = l.card_id "
+                f"JOIN {users_table} AS u ON u.id = l.user_id {where}",
+                values,
+            ).fetchone()[0]
+
+            sql = (
+                f"""
+                SELECT
+                    l.id,
+                    l.card_id,
+                    c.name,
+                    c.set_code,
+                    c.set_name,
+                    c.image_url,
+                    u.username,
+                    u.display_name,
+                    u.city,
+                    u.state,
+                    l.title,
+                    l.description,
+                    l.price_cents,
+                    l.condition,
+                    l.language,
+                    l.mode,
+                    l.contact_url,
+                    l.created_at
+                FROM listings AS l
+                JOIN {cards_table} AS c ON c.id = l.card_id
+                JOIN {users_table} AS u ON u.id = l.user_id
+                """
+                + where
+                + " ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?"
+            )
+            values = values + [limit, (page - 1) * limit]
             found = rows(connection.execute(sql, values))
         finally:
             connection.close()
 
-        return self.send_json({"listings": found, "total": len(found)})
+        return self.send_json(
+            {"listings": found, "total": total, "page": page, "limit": limit}
+        )
 
     def get_matches(self) -> None:
         """Retorna ofertas ligadas a uma impressão específica."""
@@ -833,6 +993,16 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         if price_cents is not None and price_cents < 0:
             raise ValueError("Preço não pode ser negativo")
 
+        raw_contact_url = data.get("contact_url", "")
+        contact_url = "" if raw_contact_url is None else raw_contact_url
+        if not valid_contact_url(contact_url):
+            raise ValueError(
+                "URL de contato deve ser vazia ou usar http(s) com host válido"
+            )
+        contact_url = contact_url.strip()
+        if len(contact_url) > 300:
+            raise ValueError("URL de contato deve ter no máximo 300 caracteres")
+
         connection = self.listings_connection()
         try:
             cards_table = self.cards_table()
@@ -866,7 +1036,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     condition,
                     str(data.get("language", "en"))[:8],
                     mode,
-                    str(data.get("contact_url", ""))[:300],
+                    contact_url,
                 ),
             )
             connection.commit()

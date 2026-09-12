@@ -227,13 +227,17 @@ textarea:focus {
 
 .listing {
   display: grid;
-  grid-template-columns: 115px 1fr;
+  grid-template-columns: 115px minmax(0, 1fr);
   gap: 16px;
   min-height: 190px;
   padding: 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 18px;
+}
+
+.listing > div {
+  min-width: 0;
 }
 
 .listing img {
@@ -248,6 +252,29 @@ textarea:focus {
   margin: 5px 0;
   font-size: 17px;
   line-height: 1.2;
+}
+
+.card-name,
+.description {
+  margin: 6px 0;
+}
+
+.card-name {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.description {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.contact {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 8px;
+  color: var(--green);
+  overflow-wrap: anywhere;
 }
 
 .meta {
@@ -283,6 +310,14 @@ textarea:focus {
   border: 1px solid #66552f;
   border-radius: 12px;
   color: #f4d58e;
+}
+
+.listing-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
 }
 
 
@@ -516,7 +551,7 @@ dialog form {
   }
 
   .listing {
-    grid-template-columns: 96px 1fr;
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .listing img {
@@ -536,5 +571,9 @@ dialog form {
   .hero {
     padding-right: 16px;
     padding-left: 16px;
+  }
+
+  .listing-pagination {
+    gap: 10px;
   }
 }

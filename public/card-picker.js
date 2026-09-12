@@ -60,6 +60,22 @@
 
 
     /**
+     * Cancela buscas pendentes e invalida respostas que já estejam a caminho.
+     */
+    function invalidatePendingRequest() {
+      clearTimeout(timer);
+      timer = null;
+
+      if (controller) {
+        controller.abort();
+        controller = null;
+      }
+
+      requestId += 1;
+    }
+
+
+    /**
      * Produz a identificação curta exibida para uma impressão.
      */
     function label(card) {
@@ -115,8 +131,9 @@
         const number = card.collector_number
           ? ` · #${esc(card.collector_number)}`
           : "";
-        const language = card.language
-          ? ` · ${esc(card.language.toUpperCase())}`
+        const cardLanguage = card.language || card.lang;
+        const language = cardLanguage
+          ? ` · ${esc(String(cardLanguage).toUpperCase())}`
           : "";
 
         return `
@@ -164,7 +181,10 @@
      * Marca uma carta como escolhida e limpa a lista de resultados.
      */
     function select(card) {
+      invalidatePendingRequest();
       selectedCard = card || null;
+      resultCards = [];
+      nextPage = 1;
       hasMore = false;
       renderSelected();
       renderResults([], "");
@@ -188,7 +208,10 @@
      * Remove a seleção atual e devolve o campo ao estado inicial.
      */
     function clear() {
+      invalidatePendingRequest();
       selectedCard = null;
+      resultCards = [];
+      nextPage = 1;
       hasMore = false;
       renderSelected();
       search.value = "";
@@ -197,6 +220,10 @@
       if (hint) {
         hint.textContent = "Digite pelo menos 2 caracteres para buscar no catálogo.";
       }
+
+      root.dispatchEvent(
+        new CustomEvent("cardselected", { detail: null })
+      );
     }
 
 
@@ -224,6 +251,9 @@
 
       // Evitamos chamadas muito amplas para entradas vazias ou pouco úteis.
       if (query.length < 2) {
+        invalidatePendingRequest();
+        resultCards = [];
+        nextPage = 1;
         hasMore = false;
         renderResults(
           [],
@@ -246,6 +276,7 @@
       // resposta lenta sobrescreva resultados mais recentes.
       if (controller) {
         controller.abort();
+        controller = null;
       }
       controller = new AbortController();
       const currentRequest = ++requestId;
@@ -279,13 +310,19 @@
           return;
         }
 
+        controller = null;
+
         const found = payload.cards || payload.data || [];
         const returnedPage = Number(payload.page) || page;
         const limit = Number(payload.limit) || 20;
-        const total = Number(payload.total) || 0;
+        const total = Number(payload.total);
 
         nextPage = returnedPage + 1;
-        hasMore = found.length > 0 && total > returnedPage * limit;
+        hasMore = found.length > 0 && (
+          Number.isFinite(total)
+            ? total > returnedPage * limit
+            : found.length >= limit
+        );
         renderResults(
           found,
           found.length ? "" : "Nenhuma carta encontrada.",
@@ -297,11 +334,22 @@
           return;
         }
 
-        hasMore = append;
-        renderResults(
-          append ? resultCards : [],
-          error.message || "Erro ao buscar carta."
-        );
+        if (currentRequest !== requestId) {
+          return;
+        }
+
+        controller = null;
+        if (append) {
+          const more = results.querySelector("[data-card-more]");
+          if (more) {
+            more.disabled = false;
+            more.textContent = "Mostrar mais impressões";
+          }
+          return;
+        }
+
+        hasMore = false;
+        renderResults([], error.message || "Erro ao buscar carta.");
       }
     }
 
@@ -309,7 +357,27 @@
     // O pequeno atraso evita uma requisição a cada tecla digitada.
     search.addEventListener("input", () => {
       clearTimeout(timer);
-      timer = setTimeout(searchCards, 220);
+      timer = null;
+
+      // Editar o texto de uma carta selecionada invalida imediatamente o
+      // vínculo antigo, antes mesmo de a nova busca terminar.
+      if (selectedCard) {
+        selectedCard = null;
+        renderSelected();
+        root.dispatchEvent(
+          new CustomEvent("cardselected", { detail: null })
+        );
+      }
+
+      invalidatePendingRequest();
+      resultCards = [];
+      nextPage = 1;
+      hasMore = false;
+      renderResults([], "");
+      timer = setTimeout(() => {
+        timer = null;
+        searchCards();
+      }, 220);
     });
 
     // Escape limpa a seleção sem precisar clicar em outro controle.
@@ -326,6 +394,7 @@
       focus: () => search.focus(),
       getSelectedCard: () => selectedCard,
       setStaticCards: cards => {
+        invalidatePendingRequest();
         staticCards = Array.isArray(cards) ? cards : null;
       },
       search: searchCards,

@@ -97,6 +97,24 @@
         </p>
         <p id="status" class="status">Carregando ofertas…</p>
         <div id="listings" class="grid"></div>
+        <div
+          id="listingPagination"
+          class="listing-pagination"
+          aria-label="Paginação das ofertas"
+          hidden
+        >
+          <button
+            type="button"
+            class="secondary compact"
+            id="previousListings"
+          >Anterior</button>
+          <span id="listingPage" class="meta">Página 1 de 1</span>
+          <button
+            type="button"
+            class="secondary compact"
+            id="nextListings"
+          >Próxima</button>
+        </div>
       </section>
 
       <!-- Explicação curta do fluxo para visitantes novos. -->
@@ -224,6 +242,19 @@
         <label>
           Descrição
           <textarea name="description" maxlength="1000" rows="3"></textarea>
+        </label>
+
+        <label>
+          Contato (URL)
+          <input
+            name="contact_url"
+            type="url"
+            maxlength="300"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="https://exemplo.com/seu-contato (opcional)"
+          >
+          <small>Use um endereço HTTP ou HTTPS com domínio.</small>
         </label>
 
         <p class="notice">

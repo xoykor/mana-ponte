@@ -7,7 +7,9 @@ de consulta.
 
 from __future__ import annotations
 
+import gzip
 import json
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -25,29 +27,56 @@ MAX_SEARCH_PAGES = 50
 SCRYFALL_SEARCH_ENDPOINT = "https://api.scryfall.com/cards/search"
 SCRYFALL_USER_AGENT = "ManaPonte/0.1 (local card search)"
 
+# Variantes publicadas pelo Scryfall em ``image_uris``. A ordem mantém
+# ``normal`` como opção padrão e cobre cartas que só expõem outra variante.
+IMAGE_VARIANTS = (
+    "normal",
+    "large",
+    "png",
+    "small",
+    "art_crop",
+    "border_crop",
+)
 
-def image_url(card: dict) -> str | None:
+
+def image_url(card: Mapping) -> str | None:
     """Retorna a melhor URL de imagem disponível para uma carta.
 
     Cartas de uma face guardam a imagem em ``image_uris``. Cartas dupla-face
     normalmente guardam as imagens dentro de ``card_faces``; nesse caso,
-    usamos a primeira face que tiver uma imagem normal.
+    usamos a primeira fonte que tiver a melhor variante disponível.
     """
 
-    direct_images = card.get("image_uris") or {}
-    if direct_images.get("normal"):
-        return direct_images["normal"]
+    if not isinstance(card, Mapping):
+        return None
 
-    for face in card.get("card_faces") or []:
-        face_images = face.get("image_uris") or {}
-        if face_images.get("normal"):
-            return face_images["normal"]
+    sources = []
+    direct_images = card.get("image_uris")
+    if isinstance(direct_images, Mapping):
+        sources.append(direct_images)
+
+    faces = card.get("card_faces")
+    if isinstance(faces, (list, tuple)):
+        for face in faces:
+            if not isinstance(face, Mapping):
+                continue
+            face_images = face.get("image_uris")
+            if isinstance(face_images, Mapping):
+                sources.append(face_images)
+
+    # Tenta a melhor variante em todas as fontes. Assim uma face posterior
+    # com ``normal`` não perde para uma ``small`` da primeira face.
+    for variant in IMAGE_VARIANTS:
+        for source in sources:
+            url = source.get(variant)
+            if isinstance(url, str) and url.strip():
+                return url
 
     # Nem todas as cartas retornam imagem. O banco aceita NULL nesse campo.
     return None
 
 
-def normalize_card(card: dict) -> tuple | None:
+def normalize_card(card: Mapping) -> tuple | None:
     """Converte um objeto Scryfall em uma tupla pronta para o SQLite.
 
     Cartas exclusivamente digitais são ignoradas porque o marketplace trata
@@ -55,29 +84,49 @@ def normalize_card(card: dict) -> tuple | None:
     podem ser associados a uma impressão e, portanto, são descartados.
     """
 
-    games = card.get("games", ["paper"])
+    if not isinstance(card, Mapping):
+        return None
+
+    games = card.get("games", ("paper",))
+    if isinstance(games, str):
+        games = (games,)
+    elif not isinstance(games, (list, tuple, set, frozenset)):
+        return None
+
     if card.get("digital") or "paper" not in games:
         return None
 
-    required_values = (
-        card.get("id"),
-        card.get("name"),
-        card.get("set"),
-        card.get("set_name"),
-        card.get("collector_number"),
-    )
-    if not all(required_values):
+    values = []
+    for key in ("id", "name", "set", "set_name", "collector_number"):
+        value = card.get(key)
+        if isinstance(value, bool) or value is None:
+            return None
+        if not isinstance(value, (str, int, float)):
+            return None
+        text = str(value)
+        if not text.strip():
+            return None
+        values.append(text)
+
+    scryfall_id, name, set_code, set_name, collector_number = values
+    oracle_id = card.get("oracle_id")
+    if oracle_id is not None and not isinstance(oracle_id, str):
+        oracle_id = str(oracle_id)
+
+    language = card.get("lang") or "en"
+    rarity = card.get("rarity") or "common"
+    if not isinstance(language, str) or not isinstance(rarity, str):
         return None
 
     return (
-        card["id"],
-        card.get("oracle_id"),
-        card["name"],
-        card["set"],
-        card["set_name"],
-        str(card["collector_number"]),
-        card.get("lang", "en"),
-        card.get("rarity", "common"),
+        scryfall_id,
+        oracle_id,
+        name,
+        set_code,
+        set_name,
+        collector_number,
+        language,
+        rarity,
         image_url(card),
     )
 
@@ -196,47 +245,243 @@ def search_scryfall(
     ]
 
 
+def _notify_skip(on_skip: Callable[[str], None] | None, kind: str) -> None:
+    """Notifica uma entrada ignorada sem exigir um callback no chamador."""
+
+    if on_skip is not None:
+        on_skip(kind)
+
+
+def _iter_json_array(
+    source,
+    first_line: str,
+    on_skip: Callable[[str], None] | None,
+) -> Iterator[object]:
+    """Lê um array JSON incrementalmente a partir da primeira linha."""
+
+    decoder = json.JSONDecoder()
+    buffer = first_line
+    end_of_file = False
+
+    def fill() -> None:
+        nonlocal buffer, end_of_file
+        if end_of_file:
+            return
+        chunk = source.read(64 * 1024)
+        if chunk:
+            buffer += chunk
+        else:
+            end_of_file = True
+
+    def discard_whitespace() -> bool:
+        nonlocal buffer
+        while True:
+            stripped = buffer.lstrip()
+            if stripped:
+                buffer = stripped
+                return True
+            if end_of_file:
+                return False
+            fill()
+
+    if not discard_whitespace() or not buffer.startswith("["):
+        _notify_skip(on_skip, "invalid")
+        return
+
+    buffer = buffer[1:]
+    seen_value = False
+    expecting_value = True
+
+    def finish() -> bool:
+        """Confirma que só há espaços depois do fechamento do array."""
+
+        nonlocal buffer
+        while True:
+            if buffer.strip():
+                _notify_skip(on_skip, "invalid")
+                return False
+            if end_of_file:
+                return True
+            fill()
+
+    while True:
+        if not discard_whitespace():
+            _notify_skip(on_skip, "invalid")
+            return
+
+        if buffer.startswith("]"):
+            if expecting_value and seen_value:
+                _notify_skip(on_skip, "invalid")
+                return
+            buffer = buffer[1:]
+            finish()
+            return
+
+        while True:
+            try:
+                value, consumed = decoder.raw_decode(buffer)
+            except json.JSONDecodeError:
+                if end_of_file:
+                    _notify_skip(on_skip, "invalid")
+                    return
+                fill()
+                continue
+
+            yield value
+            buffer = buffer[consumed:]
+            seen_value = True
+            expecting_value = False
+            break
+
+        if not discard_whitespace():
+            _notify_skip(on_skip, "invalid")
+            return
+        if buffer.startswith(","):
+            buffer = buffer[1:]
+            expecting_value = True
+            continue
+        if buffer.startswith("]"):
+            buffer = buffer[1:]
+            finish()
+            return
+
+        _notify_skip(on_skip, "invalid")
+        return
+
+
+def _iter_cards(
+    file_path: str | Path,
+    on_skip: Callable[[str], None] | None = None,
+) -> Iterator[object]:
+    """Gera os objetos de carta do arquivo Bulk Data.
+
+    Suporta JSONL e arrays JSON, comprimidos ou não. JSONL é consumido linha a
+    linha; arrays também são decodificados em valores individuais, mantendo o
+    uso de memória limitado ao buffer corrente.
+    """
+
+    path = Path(file_path)
+
+    # Detecta gzip pelo número mágico (0x1f 0x8b), não pela extensão, lendo
+    # apenas os dois bytes necessários. Isso evita duplicar na memória um bulk
+    # inteiro antes de começar a importação.
+    with path.open("rb") as probe:
+        is_gzip = probe.read(2) == b"\x1f\x8b"
+    opener = gzip.open if is_gzip else open
+
+    with opener(path, mode="rt", encoding="utf-8-sig", errors="replace") as source:
+        # A primeira linha não vazia identifica arrays JSON antigos. Para
+        # JSONL, ela é processada imediatamente e as seguintes são lidas uma
+        # por vez; não há ``read`` ou ``splitlines`` do arquivo inteiro.
+        first_line = None
+        for line in source:
+            if line.strip():
+                first_line = line
+                break
+            _notify_skip(on_skip, "blank")
+
+        if first_line is None:
+            return
+
+        if first_line.lstrip().startswith("["):
+            yield from _iter_json_array(source, first_line, on_skip)
+            return
+
+        try:
+            yield json.loads(first_line.strip())
+        except json.JSONDecodeError:
+            _notify_skip(on_skip, "invalid")
+
+        for line in source:
+            stripped = line.strip()
+            if not stripped:
+                _notify_skip(on_skip, "blank")
+                continue
+            try:
+                yield json.loads(stripped)
+            except json.JSONDecodeError:
+                _notify_skip(on_skip, "invalid")
+
+
 def import_file(
     file_path: str | Path,
     db_path: str | Path | None = None,
     batch_size: int = BATCH_SIZE,
 ) -> int:
-    """Importa um array JSON do Bulk Data e retorna o total processado."""
+    """Importa o catálogo Bulk Data e retorna o total de cartas processadas.
+
+    O retorno continua sendo um inteiro para os consumidores existentes. Um
+    relatório legível é emitido ao final com importadas, ignoradas e inválidas;
+    linhas JSON inválidas entram tanto em ``ignoradas`` quanto em ``inválidas``.
+    """
+
+    if (
+        isinstance(batch_size, bool)
+        or not isinstance(batch_size, int)
+        or batch_size <= 0
+    ):
+        raise ValueError("batch_size deve ser um inteiro positivo")
 
     # O schema precisa existir antes de qualquer operação de upsert.
     init_cards_db(db_path)
 
-    with Path(file_path).open(encoding="utf-8") as source:
-        payload = json.load(source)
-
-    if not isinstance(payload, list):
-        raise ValueError("O Bulk Data deve ser um array JSON")
-
+    # Lê linha a linha para não carregar o arquivo inteiro na RAM.
     total_imported = 0
+    skipped = 0
+    invalid_entries = 0
     batch = []
     connection = get_cards_connection(db_path)
+    skips = {"blank": 0, "invalid": 0}
+
+    def on_skip(kind: str) -> None:
+        nonlocal skipped
+        if kind in skips:
+            skips[kind] += 1
+        skipped += 1
 
     try:
-        for raw_card in payload:
+        for raw_card in _iter_cards(file_path, on_skip=on_skip):
+            # Entradas não-objeto não abortam a importação com AttributeError.
+            if not isinstance(raw_card, Mapping):
+                skipped += 1
+                invalid_entries += 1
+                continue
+
             normalized = normalize_card(raw_card)
             if normalized:
                 batch.append(normalized)
+            else:
+                # Descartada por ser digital ou falta campo obrigatório.
+                skipped += 1
+                invalid_entries += 1
 
             # Assim que o lote atinge o tamanho definido, grava e libera a
             # memória usada pelas tuplas normalizadas.
             if len(batch) >= batch_size:
-                connection.executemany(UPSERT, batch)
-                total_imported += len(batch)
+                total_imported += upsert_rows(connection, batch)
                 batch.clear()
 
         # O último lote normalmente é menor que BATCH_SIZE e também precisa
         # ser persistido.
         if batch:
-            connection.executemany(UPSERT, batch)
-            total_imported += len(batch)
+            total_imported += upsert_rows(connection, batch)
 
         connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
     finally:
         connection.close()
 
+    # ``invalid_entries`` inclui registros não-objeto e cartas filtradas por
+    # serem digitais/incompletas; ``skips`` inclui também linhas em branco.
+    invalid_entries += skips["invalid"]
+    print(
+        "importadas:",
+        total_imported,
+        "ignoradas:",
+        skipped,
+        "invalidas:",
+        invalid_entries,
+    )
     return total_imported
