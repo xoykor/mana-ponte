@@ -170,6 +170,7 @@ async function main() {
 
   // A. Carga inicial (desktop)
   await navigate(BASE + "/");
+  await settle(); // aguarda loadData() assíncrono preencher catálogo e vitrine
   check("A. Carga inicial", "title contém 'ManaPonte'", true, await evalInPage("document.title.includes('ManaPonte')"));
 
   const consoleErrors = await evalInPage(
