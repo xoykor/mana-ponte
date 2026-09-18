@@ -173,6 +173,32 @@ dialog.wide-dialog {
   font-size: 12px;
 }
 
+.account-item-button {
+  width: 100%;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-item-button:hover,
+.account-item-button:focus-visible {
+  background: #18231d;
+  border-color: var(--green);
+  outline: none;
+}
+
+.profile-chevron {
+  color: var(--green);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.profile-link {
+  display: inline-flex;
+  margin-top: 10px;
+}
+
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
