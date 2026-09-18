@@ -86,7 +86,7 @@ class DatabaseTest(unittest.TestCase):
             }
 
             self.assertTrue(
-                {"password_hash", "email_verified", "updated_at"}.issubset(
+                {"password_hash", "email_verified", "updated_at", "phone"}.issubset(
                     columns
                 )
             )
@@ -100,5 +100,5 @@ class DatabaseTest(unittest.TestCase):
                 migrated.execute(
                     "SELECT MAX(version) FROM schema_version"
                 ).fetchone()[0],
-                2,
+                3,
             )
