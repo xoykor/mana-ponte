@@ -7,12 +7,16 @@ parte do contrato HTTP da aplicação.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import mimetypes
 import os
+import secrets
 import sqlite3
 import threading
 import time
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from collections.abc import Mapping
 from collections import defaultdict, deque
 from contextlib import closing
@@ -52,9 +56,14 @@ from .db import (
 # Arquivos estáticos são servidos pelo mesmo processo da API durante o
 # desenvolvimento local. O GitHub Pages publica essa pasta separadamente.
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "uploads"
 
-# O corpo de uma requisição JSON não pode ultrapassar 32 KiB no protótipo.
+# Requisições normais continuam pequenas. Fotos usam uma rota separada com
+# limite maior e validação individual dos arquivos.
 MAX_BODY = 32 * 1024
+MAX_PHOTO_BODY = 12 * 1024 * 1024
+MAX_LISTING_PHOTOS = 4
+MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
 # Sessões novas duram uma semana, salvo configuração diferente no chamador.
 SESSION_TTL = 7 * 24 * 60 * 60
@@ -302,6 +311,70 @@ def positive_int(value, default: int, maximum: int) -> int:
         return default
 
 
+def query_price_cents(value: object) -> int | None:
+    """Converte um preço decimal da query para centavos sem usar float."""
+
+    if value in (None, ""):
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError("Preço de filtro inválido") from error
+    if amount < 0:
+        raise ValueError("Preço de filtro não pode ser negativo")
+    return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def normalize_card_language(value: object) -> str | None:
+    """Normaliza um código curto de idioma ou devolve None para qualquer idioma."""
+
+    if value in (None, ""):
+        return None
+    language = str(value).strip().lower()
+    if not 2 <= len(language) <= 8 or not language.isalnum():
+        raise ValueError("Idioma inválido")
+    return language
+
+
+def decode_photo_data_url(value: object) -> tuple[bytes, str]:
+    """Valida uma foto em data URL e devolve bytes + extensão segura."""
+
+    if not isinstance(value, str) or not value.startswith("data:image/"):
+        raise ValueError("Foto inválida")
+
+    header, separator, encoded = value.partition(",")
+    if not separator or ";base64" not in header:
+        raise ValueError("Foto deve ser enviada em Base64")
+
+    mime = header[5:].split(";", 1)[0].lower()
+    extensions = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    extension = extensions.get(mime)
+    if not extension:
+        raise ValueError("Use fotos JPEG, PNG ou WebP")
+
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("Foto Base64 inválida") from error
+
+    if not content or len(content) > MAX_PHOTO_BYTES:
+        raise ValueError("Cada foto deve ter no máximo 2 MiB")
+
+    signatures = {
+        ".jpg": content.startswith(b"\xff\xd8\xff"),
+        ".png": content.startswith(b"\x89PNG\r\n\x1a\n"),
+        ".webp": content.startswith(b"RIFF") and content[8:12] == b"WEBP",
+    }
+    if not signatures[extension]:
+        raise ValueError("O conteúdo da foto não corresponde ao formato informado")
+
+    return content, extension
+
+
 def normalize_public_phone(value: object) -> str | None:
     """Normaliza celular opcional para um formato seguro de contato público."""
 
@@ -454,7 +527,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         parsed = parse_qs(query_string)
         return {key: values[0] for key, values in parsed.items()}
 
-    def read_json(self) -> dict:
+    def read_json(self, max_body: int = MAX_BODY) -> dict:
         """Lê e valida o corpo JSON de uma requisição.
 
         O servidor aceita somente objetos JSON, não arrays ou valores simples,
@@ -468,8 +541,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         if content_length <= 0:
             raise ValueError("Corpo JSON ausente")
-        if content_length > MAX_BODY:
-            raise OverflowError("Corpo JSON maior que 32 KiB")
+        if content_length > max_body:
+            raise OverflowError("Corpo JSON excede o limite permitido")
 
         data = json.loads(self.rfile.read(content_length))
         if not isinstance(data, dict):
@@ -593,6 +666,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.get_sets()
             if path == "/api/listings":
                 return self.get_listings()
+            if path.startswith("/api/listings/"):
+                listing_id = path.removeprefix("/api/listings/")
+                if not listing_id or "/" in listing_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.get_listing(int(listing_id))
             if path == "/api/wants":
                 return self.get_wants()
             if path == "/api/matches":
@@ -604,6 +682,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.get_public_user(int(user_id))
             if path.startswith("/api/"):
                 return self.send_json({"error": "Rota não encontrada"}, 404)
+            if path.startswith("/uploads/"):
+                return self.serve_upload(path)
 
             return self.serve_static(path)
         except (ValueError, TypeError) as error:
@@ -618,9 +698,12 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
 
-            # Logout não precisa de corpo; as demais rotas POST precisam.
+            # Logout não precisa de corpo. Fotos têm um limite próprio porque
+            # chegam comprimidas pelo navegador em Base64.
             if path == "/api/auth/logout" and content_length == 0:
                 data = {}
+            elif path.startswith("/api/listings/") and path.endswith("/photos"):
+                data = self.read_json(MAX_PHOTO_BODY)
             else:
                 data = self.read_json()
 
@@ -632,6 +715,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.logout()
             if path == "/api/listings":
                 return self.create_listing(data)
+            if path.startswith("/api/listings/") and path.endswith("/photos"):
+                raw_id = path.removeprefix("/api/listings/").removesuffix("/photos")
+                if not raw_id or "/" in raw_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.replace_listing_photos(int(raw_id), data)
             if path == "/api/wants":
                 return self.create_want(data)
 
