@@ -216,6 +216,18 @@
     function select(card) {
       invalidatePendingRequest();
       selectedCard = card || null;
+
+      const selectedLanguage = String(
+        selectedCard?.language || selectedCard?.lang || ""
+      ).toLowerCase();
+      if (
+        language &&
+        selectedLanguage &&
+        [...language.options].some(option => option.value === selectedLanguage)
+      ) {
+        language.value = selectedLanguage;
+      }
+
       resultCards = [];
       nextPage = 1;
       hasMore = false;
