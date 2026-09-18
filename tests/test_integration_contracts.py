@@ -146,6 +146,40 @@ class SplitApiContractTest(unittest.TestCase):
         self.assertEqual(set(seen), set(expected))
         self.assertEqual(len(seen), len(expected))
 
+    def test_wants_and_matches_work_across_split_databases(self):
+        """Desejos cruzam listings, cards e accounts nos três bancos."""
+
+        self.login_demo()
+
+        status, initial = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertTrue(
+            any(item["wanted_name"] == "Rhystic Study" for item in initial["matches"])
+        )
+
+        status, created = self.request(
+            "POST",
+            "/api/wants",
+            {
+                "card_id": 4,
+                "max_price_cents": 1000,
+                "desired_condition": "NM",
+                "mode": "compra",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertTrue(
+            any(
+                item["want_id"] == created["id"]
+                and item["name"] == "Counterspell"
+                for item in matches["matches"]
+            )
+        )
+
     def test_contact_url_over_limit_is_rejected(self):
         """A API não grava uma URL válida parcialmente truncada."""
 
