@@ -250,19 +250,6 @@
           <textarea name="description" maxlength="1000" rows="3"></textarea>
         </label>
 
-        <label>
-          Contato (URL)
-          <input
-            name="contact_url"
-            type="url"
-            maxlength="300"
-            inputmode="url"
-            autocomplete="url"
-            placeholder="https://exemplo.com/seu-contato (opcional)"
-          >
-          <small>Use um endereço HTTP ou HTTPS com domínio.</small>
-        </label>
-
         <p class="notice">
           Escolha a impressão exata; ela será vinculada à sua oferta.
         </p>
@@ -446,6 +433,31 @@
         </section>
 
         <p id="accountStatus" class="status" role="status"></p>
+      </div>
+    </dialog>
+
+    <dialog id="publicProfileModal" class="wide-dialog">
+      <div class="account-shell">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Jogador</p>
+            <h2 id="publicProfileName">Perfil</h2>
+            <p id="publicProfileLocation" class="status"></p>
+          </div>
+          <button
+            type="button"
+            class="close"
+            id="closePublicProfile"
+            aria-label="Fechar"
+          >×</button>
+        </div>
+
+        <section class="account-section">
+          <h3>Anúncios deste jogador</h3>
+          <div id="publicProfileListings" class="account-list"></div>
+        </section>
+
+        <p id="publicProfileStatus" class="status" role="status"></p>
       </div>
     </dialog>
 
