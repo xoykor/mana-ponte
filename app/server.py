@@ -1204,6 +1204,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.condition,
                     c.language AS language,
                     l.mode,
+                    l.contact_url,
                     l.created_at,
                     (
                         SELECT COUNT(*)
