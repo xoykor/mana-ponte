@@ -86,6 +86,46 @@
 
 
     /**
+     * Abre uma visualização grande da arte antes de escolher a impressão.
+     */
+    function showZoom(card) {
+      const image = card?.image_url || card?.imageUrl || "";
+      if (!image) {
+        return;
+      }
+
+      let dialog = document.querySelector("[data-card-preview-dialog]");
+      if (!dialog) {
+        dialog = document.createElement("dialog");
+        dialog.className = "card-preview-dialog";
+        dialog.dataset.cardPreviewDialog = "";
+        dialog.innerHTML = `
+          <div class="card-preview-shell">
+            <button
+              type="button"
+              class="close card-preview-close"
+              aria-label="Fechar ampliação"
+            >×</button>
+            <img data-card-preview-image alt="">
+            <p data-card-preview-label></p>
+          </div>
+        `;
+        document.body.appendChild(dialog);
+        dialog.querySelector(".card-preview-close").onclick = () => dialog.close();
+        dialog.addEventListener("click", event => {
+          if (event.target === dialog) {
+            dialog.close();
+          }
+        });
+      }
+
+      dialog.querySelector("[data-card-preview-image]").src = image;
+      dialog.querySelector("[data-card-preview-image]").alt = label(card);
+      dialog.querySelector("[data-card-preview-label]").textContent = label(card);
+      dialog.showModal();
+    }
+
+    /**
      * Atualiza a área que mostra a carta escolhida e o input escondido.
      */
     function renderSelected() {
@@ -137,26 +177,42 @@
           : "";
 
         return `
-          <button
-            type="button"
-            class="card-picker-result"
-            data-card-index="${index}"
-            role="option"
-          >
-            <span class="card-picker-thumb">
-              ${image
-                ? `<img src="${esc(image)}" alt="" loading="lazy">`
-                : ""}
-            </span>
-            <span>
-              <strong>${esc(card.name)}</strong>
-              <small>${esc(set)}${number}${language}</small>
-            </span>
-          </button>
+          <div class="card-picker-result">
+            <button
+              type="button"
+              class="card-picker-zoom"
+              data-card-zoom="${index}"
+              aria-label="Ampliar ${esc(card.name)}"
+              ${image ? "" : "disabled"}
+            >
+              <span class="card-picker-thumb">
+                ${image
+                  ? `<img src="${esc(image)}" alt="" loading="lazy">`
+                  : ""}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="card-picker-select"
+              data-card-index="${index}"
+              role="option"
+            >
+              <span>
+                <strong>${esc(card.name)}</strong>
+                <small>${esc(set)}${number}${language}</small>
+              </span>
+            </button>
+          </div>
         `;
       }).join("");
 
-      // Cada botão precisa apontar para o objeto da mesma posição no array.
+      // A imagem amplia; o restante da linha seleciona a impressão.
+      results.querySelectorAll("[data-card-zoom]").forEach(button => {
+        button.onclick = () => {
+          showZoom(resultCards[Number(button.dataset.cardZoom)]);
+        };
+      });
+
       results.querySelectorAll("[data-card-index]").forEach(button => {
         button.onclick = () => {
           select(resultCards[Number(button.dataset.cardIndex)]);
