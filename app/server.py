@@ -572,6 +572,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.get_wants()
             if path == "/api/matches":
                 return self.get_matches()
+            if path.startswith("/api/users/"):
+                user_id = path.removeprefix("/api/users/")
+                if not user_id or "/" in user_id:
+                    raise ValueError("ID de usuário inválido")
+                return self.get_public_user(int(user_id))
             if path.startswith("/api/"):
                 return self.send_json({"error": "Rota não encontrada"}, 404)
 
@@ -1074,6 +1079,61 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             {"listings": found, "total": total, "page": page, "limit": limit}
         )
 
+    def get_public_user(self, user_id: int) -> None:
+        """Retorna somente dados públicos do jogador e seus anúncios."""
+
+        cards_table = self.cards_table()
+        users_table = self.users_table()
+        connection = self.listings_connection()
+        try:
+            user = connection.execute(
+                f"""
+                SELECT id, username, display_name, city, state
+                FROM {users_table}
+                WHERE id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+            if not user:
+                return self.send_json({"error": "Usuário não encontrado"}, 404)
+
+            listings = rows(
+                connection.execute(
+                    f"""
+                    SELECT
+                        l.id,
+                        l.card_id,
+                        l.user_id,
+                        c.name,
+                        c.set_code,
+                        c.set_name,
+                        c.image_url,
+                        l.title,
+                        l.description,
+                        l.price_cents,
+                        l.condition,
+                        l.language,
+                        l.mode,
+                        l.created_at
+                    FROM listings AS l
+                    JOIN {cards_table} AS c ON c.id = l.card_id
+                    WHERE l.user_id = ?
+                    ORDER BY l.created_at DESC, l.id DESC
+                    LIMIT 100
+                    """,
+                    (user_id,),
+                )
+            )
+        finally:
+            connection.close()
+
+        return self.send_json(
+            {
+                "user": dict(user),
+                "listings": listings,
+            }
+        )
+
     def get_wants(self) -> None:
         """Lista os desejos do usuário autenticado."""
 
@@ -1250,6 +1310,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                             l.condition,
                             l.mode,
                             l.contact_url,
+                            u.id AS user_id,
+                            u.username,
                             u.display_name,
                             u.city,
                             u.state
@@ -1304,6 +1366,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.condition,
                         l.mode,
                         l.contact_url,
+                        u.id AS user_id,
+                        u.username,
                         u.display_name,
                         u.city,
                         u.state
