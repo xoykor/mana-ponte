@@ -103,14 +103,13 @@ class DatabaseTest(unittest.TestCase):
                 4,
             )
 
-    def test_migrates_marketplace_language_and_photo_tables(self):
-        """Banco antigo recebe idioma desejado e fotos sem perder anúncios."""
+    def test_migrates_marketplace_desired_language(self):
+        """Banco antigo recebe idioma desejado sem perder anúncios."""
 
         legacy = Path(self.temp.name) / "marketplace-legacy.db"
         seed_all(legacy, reset=True)
 
         with closing(get_connection(legacy)) as connection:
-            connection.execute("DROP TABLE listing_photos")
             connection.execute(
                 """
                 CREATE TABLE wants_old AS
@@ -130,14 +129,7 @@ class DatabaseTest(unittest.TestCase):
                 row["name"]
                 for row in migrated.execute("PRAGMA table_info(wants)")
             }
-            tables = {
-                row[0]
-                for row in migrated.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
             self.assertIn("desired_language", want_columns)
-            self.assertIn("listing_photos", tables)
             self.assertEqual(
                 migrated.execute(
                     "SELECT COUNT(*) FROM listings"

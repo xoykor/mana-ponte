@@ -713,16 +713,6 @@ dialog form {
   flex: 1;
 }
 
-.check-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.check-row input {
-  width: auto;
-}
-
 .listing-detail {
   display: grid;
   gap: 36px;
@@ -757,35 +747,6 @@ dialog form {
 .listing-detail-price {
   margin: 22px 0;
   font-size: 28px;
-}
-
-.listing-photo-section {
-  padding: 26px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.listing-photo-gallery {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.listing-photo-button {
-  padding: 0;
-  overflow: hidden;
-  background: #0c1210;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  cursor: zoom-in;
-}
-
-.listing-photo-button img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
 }
 
 .seller-card {
@@ -833,18 +794,6 @@ dialog form {
     gap: 24px;
   }
 
-  .listing-photo-gallery {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .standalone-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-  .hero {
-    grid-template-columns: 1fr;
-    gap: 30px;
-    padding-top: 55px;
-  }
-
   .grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -861,10 +810,6 @@ dialog form {
 
   .listing-detail-art > img {
     max-width: 280px;
-  }
-
-  .listing-photo-gallery {
-    grid-template-columns: 1fr 1fr;
   }
 
   .seller-card,

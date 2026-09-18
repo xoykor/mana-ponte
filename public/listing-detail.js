@@ -9,7 +9,6 @@
     formatPhone,
     phoneHref,
     whatsappHref,
-    assetUrl,
   } = window.ManaPontePage;
 
   const $ = selector => document.querySelector(selector);
@@ -25,34 +24,6 @@
     return new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "medium",
     }).format(date);
-  }
-
-  function renderPhotos(photos, cardName) {
-    const entries = Array.isArray(photos) ? photos : [];
-    if (!entries.length) {
-      $("#listingPhotoSection").hidden = true;
-      return;
-    }
-
-    $("#listingPhotoSection").hidden = false;
-    $("#listingPhotoCount").textContent =
-      `${entries.length} ${entries.length === 1 ? "foto" : "fotos"}`;
-
-    $("#listingPhotoGallery").innerHTML = entries.map((photo, index) => `
-      <button
-        type="button"
-        class="listing-photo-button"
-        aria-label="Ampliar foto ${index + 1} de ${esc(cardName)}"
-      >
-        <img
-          src="${esc(assetUrl(photo.url))}"
-          alt="Foto real ${index + 1} de ${esc(cardName)}"
-          data-card-image
-          data-card-label="Foto real ${index + 1} — ${esc(cardName)}"
-          loading="lazy"
-        >
-      </button>
-    `).join("");
   }
 
   async function load() {
@@ -107,7 +78,6 @@
       );
     }
 
-    renderPhotos(data.photos, cardName);
     $("#listingDetailContent").hidden = false;
     $("#listingDetailStatus").textContent = "";
   }

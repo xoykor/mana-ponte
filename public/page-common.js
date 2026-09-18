@@ -111,13 +111,6 @@
     return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
   }
 
-  function assetUrl(path) {
-    const value = String(path || "");
-    return API_BASE && value.startsWith("/uploads/")
-      ? `${API_BASE}${value}`
-      : value;
-  }
-
   global.ManaPontePage = {
     API_BASE,
     STATIC_MODE,
@@ -128,6 +121,5 @@
     formatPhone,
     phoneHref,
     whatsappHref,
-    assetUrl,
   };
 }(window));

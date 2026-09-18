@@ -7,12 +7,9 @@ parte do contrato HTTP da aplicação.
 
 from __future__ import annotations
 
-import base64
-import binascii
 import json
 import mimetypes
 import os
-import secrets
 import sqlite3
 import threading
 import time
@@ -56,14 +53,10 @@ from .db import (
 # Arquivos estáticos são servidos pelo mesmo processo da API durante o
 # desenvolvimento local. O GitHub Pages publica essa pasta separadamente.
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
-UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "uploads"
 
-# Requisições normais continuam pequenas. Fotos usam uma rota separada com
-# limite maior e validação individual dos arquivos.
+# O corpo JSON das rotas mutáveis permanece pequeno; o backend não recebe
+# arquivos enviados por usuários.
 MAX_BODY = 32 * 1024
-MAX_PHOTO_BODY = 12 * 1024 * 1024
-MAX_LISTING_PHOTOS = 4
-MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
 # Sessões novas duram uma semana, salvo configuração diferente no chamador.
 SESSION_TTL = 7 * 24 * 60 * 60
@@ -336,45 +329,6 @@ def normalize_card_language(value: object) -> str | None:
     return language
 
 
-def decode_photo_data_url(value: object) -> tuple[bytes, str]:
-    """Valida uma foto em data URL e devolve bytes + extensão segura."""
-
-    if not isinstance(value, str) or not value.startswith("data:image/"):
-        raise ValueError("Foto inválida")
-
-    header, separator, encoded = value.partition(",")
-    if not separator or ";base64" not in header:
-        raise ValueError("Foto deve ser enviada em Base64")
-
-    mime = header[5:].split(";", 1)[0].lower()
-    extensions = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-    }
-    extension = extensions.get(mime)
-    if not extension:
-        raise ValueError("Use fotos JPEG, PNG ou WebP")
-
-    try:
-        content = base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as error:
-        raise ValueError("Foto Base64 inválida") from error
-
-    if not content or len(content) > MAX_PHOTO_BYTES:
-        raise ValueError("Cada foto deve ter no máximo 2 MiB")
-
-    signatures = {
-        ".jpg": content.startswith(b"\xff\xd8\xff"),
-        ".png": content.startswith(b"\x89PNG\r\n\x1a\n"),
-        ".webp": content.startswith(b"RIFF") and content[8:12] == b"WEBP",
-    }
-    if not signatures[extension]:
-        raise ValueError("O conteúdo da foto não corresponde ao formato informado")
-
-    return content, extension
-
-
 def normalize_public_phone(value: object) -> str | None:
     """Normaliza celular opcional para um formato seguro de contato público."""
 
@@ -459,7 +413,6 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
     cards_db_path = None
     accounts_db_path = None
     listings_db_path = None
-    upload_dir = UPLOAD_DIR
 
     # Cada servidor recebe seu próprio limiter para os testes e para processos
     # diferentes não compartilharem estado acidentalmente.
@@ -683,8 +636,6 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.get_public_user(int(user_id))
             if path.startswith("/api/"):
                 return self.send_json({"error": "Rota não encontrada"}, 404)
-            if path.startswith("/uploads/"):
-                return self.serve_upload(path)
 
             return self.serve_static(path)
         except (ValueError, TypeError) as error:
@@ -699,12 +650,9 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
 
-            # Logout não precisa de corpo. Fotos têm um limite próprio porque
-            # chegam comprimidas pelo navegador em Base64.
+            # Logout não precisa de corpo; as demais rotas POST recebem JSON.
             if path == "/api/auth/logout" and content_length == 0:
                 data = {}
-            elif path.startswith("/api/listings/") and path.endswith("/photos"):
-                data = self.read_json(MAX_PHOTO_BODY)
             else:
                 data = self.read_json()
 
@@ -716,11 +664,6 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.logout()
             if path == "/api/listings":
                 return self.create_listing(data)
-            if path.startswith("/api/listings/") and path.endswith("/photos"):
-                raw_id = path.removeprefix("/api/listings/").removesuffix("/photos")
-                if not raw_id or "/" in raw_id:
-                    raise ValueError("ID de anúncio inválido")
-                return self.replace_listing_photos(int(raw_id), data)
             if path == "/api/wants":
                 return self.create_want(data)
 
@@ -1205,20 +1148,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     c.language AS language,
                     l.mode,
                     l.contact_url,
-                    l.created_at,
-                    (
-                        SELECT COUNT(*)
-                        FROM listing_photos AS lp
-                        WHERE lp.listing_id = l.id
-                    ) AS photo_count,
-                    (
-                        SELECT '/uploads/' || lp.path
-                        FROM listing_photos AS lp
-                        WHERE lp.listing_id = l.id
-                        ORDER BY lp.position
-                        LIMIT 1
-                    ) AS primary_photo_url
-                FROM listings AS l
+                    l.created_at                FROM listings AS l
                 JOIN {cards_table} AS c ON c.id = l.card_id
                 JOIN {users_table} AS u ON u.id = l.user_id
                 """
@@ -1245,7 +1175,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         )
 
     def get_listing(self, listing_id: int) -> None:
-        """Retorna a página pública de um anúncio e suas fotos reais."""
+        """Retorna a página pública de um anúncio e seus dados de contato."""
 
         cards_table = self.cards_table()
         users_table = self.users_table()
@@ -1285,29 +1215,10 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             if not listing:
                 return self.send_json({"error": "Anúncio não encontrado"}, 404)
 
-            photos = rows(
-                connection.execute(
-                    """
-                    SELECT id, path, position
-                    FROM listing_photos
-                    WHERE listing_id = ?
-                    ORDER BY position, id
-                    """,
-                    (listing_id,),
-                )
-            )
         finally:
             connection.close()
 
-        for photo in photos:
-            photo["url"] = f"/uploads/{photo['path']}"
-
-        return self.send_json(
-            {
-                "listing": dict(listing),
-                "photos": photos,
-            }
-        )
+        return self.send_json({"listing": dict(listing)})
 
     def get_public_user(self, user_id: int) -> None:
         """Retorna perfil público, estatísticas, anúncios e cartas procuradas."""
@@ -1353,12 +1264,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.condition,
                         c.language AS language,
                         l.mode,
-                        l.created_at,
-                        (
-                            SELECT COUNT(*)
-                            FROM listing_photos AS lp
-                            WHERE lp.listing_id = l.id
-                        ) AS photo_count
+                        l.created_at
                     FROM listings AS l
                     JOIN {cards_table} AS c ON c.id = l.card_id
                     WHERE l.user_id = ?
@@ -1887,105 +1793,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         return self.send_json({"id": listing_id, "message": "Anúncio atualizado"})
 
-    def replace_listing_photos(self, listing_id: int, data: dict) -> None:
-        """Substitui as fotos reais de um anúncio pertencente ao usuário."""
-
-        session = self.current_session()
-        if not session:
-            return self.send_json({"error": "Faça login para enviar fotos"}, 401)
-        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
-            return self.send_json({"error": "Token CSRF inválido"}, 403)
-
-        photos = data.get("photos")
-        if not isinstance(photos, list):
-            raise ValueError("photos deve ser uma lista")
-        if len(photos) > MAX_LISTING_PHOTOS:
-            raise ValueError("Um anúncio pode ter no máximo 4 fotos")
-
-        # Toda a validação ocorre antes de alterar banco ou arquivos antigos.
-        decoded = [decode_photo_data_url(photo) for photo in photos]
-
-        connection = self.listings_connection()
-        written_paths: list[str] = []
-        old_paths: list[str] = []
-        try:
-            owner = connection.execute(
-                "SELECT 1 FROM listings WHERE id = ? AND user_id = ?",
-                (listing_id, session["user_id"]),
-            ).fetchone()
-            if not owner:
-                return self.send_json({"error": "Anúncio não encontrado"}, 404)
-
-            old_paths = [
-                row["path"]
-                for row in connection.execute(
-                    "SELECT path FROM listing_photos WHERE listing_id = ?",
-                    (listing_id,),
-                )
-            ]
-
-            directory = self.upload_dir / "listings" / str(listing_id)
-            directory.mkdir(parents=True, exist_ok=True)
-
-            for position, (content, extension) in enumerate(decoded):
-                filename = f"{secrets.token_hex(16)}{extension}"
-                relative = f"listings/{listing_id}/{filename}"
-                destination = (self.upload_dir / relative).resolve()
-                upload_root = self.upload_dir.resolve()
-                if upload_root not in destination.parents:
-                    raise ValueError("Caminho de foto inválido")
-                destination.write_bytes(content)
-                written_paths.append(relative)
-
-            connection.execute(
-                "DELETE FROM listing_photos WHERE listing_id = ?",
-                (listing_id,),
-            )
-            connection.executemany(
-                """
-                INSERT INTO listing_photos(listing_id, path, position)
-                VALUES (?, ?, ?)
-                """,
-                [
-                    (listing_id, path, position)
-                    for position, path in enumerate(written_paths)
-                ],
-            )
-            connection.commit()
-        except Exception:
-            connection.rollback()
-            for relative in written_paths:
-                try:
-                    (self.upload_dir / relative).unlink(missing_ok=True)
-                except OSError:
-                    pass
-            raise
-        finally:
-            connection.close()
-
-        # Só apagamos os arquivos antigos depois do commit com os novos.
-        for relative in old_paths:
-            if relative in written_paths:
-                continue
-            try:
-                candidate = (self.upload_dir / relative).resolve()
-                if self.upload_dir.resolve() in candidate.parents:
-                    candidate.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-        return self.send_json(
-            {
-                "message": "Fotos atualizadas",
-                "photos": [
-                    {"position": position, "url": f"/uploads/{path}"}
-                    for position, path in enumerate(written_paths)
-                ],
-            }
-        )
-
     def delete_listing(self, listing_id: int) -> None:
-        """Remove um anúncio do usuário e limpa as fotos físicas associadas."""
+        """Remove somente um anúncio pertencente ao usuário autenticado."""
 
         session = self.current_session()
         if not session:
@@ -1994,22 +1803,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             return self.send_json({"error": "Token CSRF inválido"}, 403)
 
         connection = self.listings_connection()
-        photo_paths: list[str] = []
         try:
-            owner = connection.execute(
-                "SELECT 1 FROM listings WHERE id = ? AND user_id = ?",
-                (listing_id, session["user_id"]),
-            ).fetchone()
-            if not owner:
-                return self.send_json({"error": "Anúncio não encontrado"}, 404)
-
-            photo_paths = [
-                row["path"]
-                for row in connection.execute(
-                    "SELECT path FROM listing_photos WHERE listing_id = ?",
-                    (listing_id,),
-                )
-            ]
             cursor = connection.execute(
                 "DELETE FROM listings WHERE id = ? AND user_id = ?",
                 (listing_id, session["user_id"]),
@@ -2020,40 +1814,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         if cursor.rowcount == 0:
             return self.send_json({"error": "Anúncio não encontrado"}, 404)
-
-        for relative in photo_paths:
-            try:
-                candidate = (self.upload_dir / relative).resolve()
-                if self.upload_dir.resolve() in candidate.parents:
-                    candidate.unlink(missing_ok=True)
-            except OSError:
-                pass
-
         return self.send_json({"message": "Anúncio removido"})
-
-    def serve_upload(self, path: str) -> None:
-        """Serve somente fotos que estejam dentro de data/uploads."""
-
-        relative = path.removeprefix("/uploads/")
-        if not relative:
-            return self.send_error(404)
-
-        candidate = (self.upload_dir / relative).resolve()
-        upload_root = self.upload_dir.resolve()
-        if upload_root not in candidate.parents:
-            return self.send_error(403)
-        if not candidate.is_file():
-            return self.send_error(404)
-
-        body = candidate.read_bytes()
-        content_type = mimetypes.guess_type(candidate.name)[0]
-        self.send_response(200)
-        self.send_header("Content-Type", content_type or "application/octet-stream")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-        self.end_headers()
-        self.wfile.write(body)
 
     def serve_static(self, path: str) -> None:
         """Serve um arquivo de ``public/`` sem permitir sair do diretório."""
@@ -2118,7 +1879,6 @@ def create_server(
             "cards_db_path": paths["cards"],
             "accounts_db_path": paths["accounts"],
             "listings_db_path": paths["listings"],
-            "upload_dir": paths["listings"].parent / "uploads",
         }
     else:
         legacy_path = resolve_db_path(db_path)
@@ -2129,7 +1889,6 @@ def create_server(
             "cards_db_path": None,
             "accounts_db_path": None,
             "listings_db_path": None,
-            "upload_dir": legacy_path.parent / "uploads",
         }
 
     handler_options["rate_limiter"] = LoginRateLimiter()

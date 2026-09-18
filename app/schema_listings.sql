@@ -41,17 +41,6 @@ CREATE TABLE IF NOT EXISTS wants (
     UNIQUE(card_id, user_id)
 );
 
--- Fotos reais do exemplar anunciado. Os arquivos ficam fora de public/ e a
--- tabela guarda somente o caminho relativo servido por /uploads/.
-CREATE TABLE IF NOT EXISTS listing_photos (
-    id INTEGER PRIMARY KEY,
-    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
-    path TEXT NOT NULL,
-    position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 3),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(listing_id, position)
-);
-
 CREATE INDEX IF NOT EXISTS idx_listings_card
     ON listings(card_id);
 
@@ -61,6 +50,3 @@ CREATE INDEX IF NOT EXISTS idx_listings_mode
 -- Índice usado quando desejos forem cruzados com ofertas no futuro.
 CREATE INDEX IF NOT EXISTS idx_wants_card
     ON wants(card_id);
-
-CREATE INDEX IF NOT EXISTS idx_listing_photos_listing
-    ON listing_photos(listing_id, position);
