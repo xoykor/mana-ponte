@@ -214,36 +214,55 @@ class ApiTest(unittest.TestCase):
             self.assertEqual(owner, 1)
 
     def test_profile_update_requires_csrf_and_refreshes_session(self):
-        """Perfil autenticado atualiza nome e localização da sessão."""
+        """Perfil atualiza nome, celular e localização da sessão."""
 
         self.login_demo()
 
-        status, _ = self.request(
-            "PATCH",
-            "/api/profile",
-            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
-        )
+        payload = {
+            "display_name": "Danton Atualizado",
+            "phone": "(84) 99999-1234",
+            "city": "Parnamirim",
+            "state": "RN",
+        }
+
+        status, _ = self.request("PATCH", "/api/profile", payload)
         self.assertEqual(status, 403)
 
         status, data = self.request(
             "PATCH",
             "/api/profile",
-            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
+            payload,
             csrf=self.csrf,
         )
         self.assertEqual(status, 200)
         self.assertEqual(data["user"]["display_name"], "Danton Atualizado")
+        self.assertEqual(data["user"]["phone"], "84999991234")
         self.assertEqual(data["user"]["city"], "Parnamirim")
 
         status, me = self.request("GET", "/api/auth/me")
         self.assertEqual(status, 200)
+        self.assertEqual(me["user"]["phone"], "84999991234")
         self.assertEqual(me["user"]["city"], "Parnamirim")
+
+        status, invalid = self.request(
+            "PATCH",
+            "/api/profile",
+            {"phone": "123"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("Celular", invalid["error"])
 
         # Restaura o fixture para os testes seguintes não dependerem da ordem.
         status, _ = self.request(
             "PATCH",
             "/api/profile",
-            {"display_name": "Danton Homero", "city": "Natal", "state": "RN"},
+            {
+                "display_name": "Danton Homero",
+                "phone": "",
+                "city": "Natal",
+                "state": "RN",
+            },
             csrf=self.csrf,
         )
         self.assertEqual(status, 200)
@@ -354,6 +373,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(data["user"]["display_name"], "Marina Lima")
         self.assertEqual(data["user"]["city"], "Fortaleza")
+        self.assertIn("phone", data["user"])
         self.assertNotIn("email", data["user"])
         self.assertNotIn("password_hash", data["user"])
         self.assertNotIn("email_verified", data["user"])
@@ -585,6 +605,18 @@ class ApiTest(unittest.TestCase):
         status, home = self.request("GET", "/")
         self.assertEqual(status, 200)
         self.assertIn(b"ManaPonte", home)
+
+        status, listings_page = self.request("GET", "/anuncios.html")
+        self.assertEqual(status, 200)
+        self.assertIn(b"Todos os an", listings_page)
+
+        status, profile_page = self.request("GET", "/perfil.html?user=2")
+        self.assertEqual(status, 200)
+        self.assertIn(b"Perfil", profile_page)
+
+        status, preview_script = self.request("GET", "/card-preview.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"ManaPonteCardPreview", preview_script)
 
         # ``So`` é uma busca local curta e não aciona a integração remota.
         status, cards = self.request(
