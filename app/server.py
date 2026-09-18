@@ -1175,7 +1175,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         )
 
     def get_listing(self, listing_id: int) -> None:
-        """Retorna a página pública de um anúncio e suas fotos reais."""
+        """Retorna a página pública de um anúncio e seus dados de contato."""
 
         cards_table = self.cards_table()
         users_table = self.users_table()
