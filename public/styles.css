@@ -689,9 +689,153 @@ dialog form {
 }
 
 
+
+/* ---------- Busca avançada e detalhes do anúncio ---------- */
+
+.listing-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.listing-title-link:hover,
+.listing-title-link:focus-visible {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.filter-actions > * {
+  flex: 1;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.check-row input {
+  width: auto;
+}
+
+.listing-detail {
+  display: grid;
+  gap: 36px;
+}
+
+.listing-detail-card {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+  gap: 42px;
+  align-items: start;
+}
+
+.listing-detail-art {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.listing-detail-art > img {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  border-radius: 18px;
+  box-shadow: 0 22px 70px #0007;
+}
+
+.listing-detail-copy h1 {
+  margin-top: 16px;
+  font-size: clamp(38px, 6vw, 68px);
+}
+
+.listing-detail-price {
+  margin: 22px 0;
+  font-size: 28px;
+}
+
+.listing-photo-section {
+  padding: 26px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.listing-photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.listing-photo-button {
+  padding: 0;
+  overflow: hidden;
+  background: #0c1210;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: zoom-in;
+}
+
+.listing-photo-button img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+.seller-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  background: linear-gradient(135deg, #16221b, #101612);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.seller-card h2 {
+  margin-bottom: 8px;
+}
+
+.seller-actions,
+.profile-contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.profile-facts {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  max-width: 900px;
+}
+
+.profile-contact-actions {
+  margin-top: 6px;
+}
+
+.public-wants {
+  max-width: 900px;
+}
+
+
 /* ---------- Ajustes responsivos ---------- */
 
 @media (max-width: 900px) {
+  .listing-detail-card {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .listing-photo-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .standalone-filters {
     grid-template-columns: 1fr 1fr;
   }
@@ -711,6 +855,23 @@ dialog form {
 }
 
 @media (max-width: 620px) {
+  .listing-detail-card {
+    grid-template-columns: 1fr;
+  }
+
+  .listing-detail-art > img {
+    max-width: 280px;
+  }
+
+  .listing-photo-gallery {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .seller-card,
+  .filter-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
   .standalone-filters,
   .profile-facts {
     grid-template-columns: 1fr;
