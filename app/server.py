@@ -1329,6 +1329,26 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                           OR l.price_cents IS NULL
                           OR l.price_cents <= w.max_price_cents
                       )
+                      AND (
+                          w.desired_condition IS NULL
+                          OR (
+                              CASE l.condition
+                                  WHEN 'NM' THEN 5
+                                  WHEN 'SP' THEN 4
+                                  WHEN 'MP' THEN 3
+                                  WHEN 'HP' THEN 2
+                                  WHEN 'DMG' THEN 1
+                              END
+                              >=
+                              CASE w.desired_condition
+                                  WHEN 'NM' THEN 5
+                                  WHEN 'SP' THEN 4
+                                  WHEN 'MP' THEN 3
+                                  WHEN 'HP' THEN 2
+                                  WHEN 'DMG' THEN 1
+                              END
+                          )
+                      )
                     ORDER BY w.id DESC, u.state, u.city, l.id DESC
                     """,
                     (session["user_id"],),
