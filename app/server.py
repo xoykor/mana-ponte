@@ -1017,7 +1017,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         filters = {
             "card_id": ("l.card_id = ?", int),
             "set": ("c.set_code = ? COLLATE NOCASE", str),
-            "lang": ("l.language = ? COLLATE NOCASE", str),
+            "lang": ("c.language = ? COLLATE NOCASE", str),
             "city": ("u.city = ? COLLATE NOCASE", str),
             "state": ("u.state = ? COLLATE NOCASE", str),
         }
@@ -1091,7 +1091,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.description,
                     l.price_cents,
                     l.condition,
-                    l.language,
+                    c.language AS language,
                     l.mode,
                     l.contact_url,
                     l.created_at
@@ -1144,7 +1144,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.description,
                         l.price_cents,
                         l.condition,
-                        l.language,
+                        c.language AS language,
                         l.mode,
                         l.created_at
                     FROM listings AS l
