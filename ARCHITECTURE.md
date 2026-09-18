@@ -50,7 +50,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 ### Busca
 
-1. A interface envia nome, coleção, UF e modalidade.
+1. A interface envia nome, coleção, cidade, UF e modalidade.
 2. A API monta somente cláusulas permitidas e usa parâmetros SQL.
 3. `cards.db` identifica a impressão; a conexão de `listings.db` anexa `cards.db` e `accounts.db` para unir oferta, usuário e localização.
 4. A resposta retorna URLs de imagem do Scryfall e metadados da oferta.
@@ -65,7 +65,9 @@ consulta enquanto ela está em voo.
 dos filtros. A ordenação por `created_at DESC, id DESC` mantém páginas
 repetíveis enquanto os dados não mudam. Cada anúncio devolve título,
 descrição, idioma, preço e `contact_url`; a URL de contato só pode ser vazia
-ou usar HTTP(S) com host válido, com limite de 300 caracteres.
+ou usar HTTP(S) com host válido, com limite de 300 caracteres. `mine=1`
+restringe a consulta ao usuário autenticado. Filtros de venda/troca incluem
+anúncios marcados como `ambos`.
 
 ### Sincronização do catálogo
 
@@ -84,13 +86,22 @@ respostas que chegaram depois de uma busca mais nova. No GitHub Pages ou com
 `?static`, a página usa os JSONs versionados e guarda novas ofertas somente no
 `localStorage`; esse modo não tem cadastro, sessão nem persistência
 compartilhada. A renderização escapa campos de catálogo e anúncios e só cria
-links de contato depois de validar HTTP(S).
+links de contato depois de validar HTTP(S). Se `public/config.js` definir
+`MANAPONTE_API_BASE`, o mesmo frontend do Pages usa a API externa com
+credenciais. O backend só libera CORS para origens configuradas por
+`MANAPONTE_ALLOWED_ORIGIN`; sessões entre domínios usam
+`MANAPONTE_CROSS_SITE_COOKIES=1` junto de HTTPS.
 
-### Criação de oferta
+### Ofertas, desejos e matching
 
-O corpo é limitado a 32 KiB; IDs, enumerações, tamanho de texto e preço são validados. A API exige sessão e CSRF, ignora `user_id` enviado pelo cliente e deriva a autoria da sessão. Todas as consultas usam parâmetros.
+O corpo é limitado a 32 KiB; IDs, enumerações, tamanho de texto e preço são
+validados. A API exige sessão e CSRF, ignora `user_id` enviado pelo cliente e
+deriva a autoria da sessão. Edição e remoção de anúncios usam o mesmo vínculo
+de proprietário. Desejos são criados por usuário e podem limitar modalidade e
+preço. O matching cruza `wants` e `listings` e usa `oracle_id` para aceitar
+reimpressões da mesma carta. Todas as consultas usam parâmetros.
 
-### Cadastro e sessão
+### Cadastro, perfil e sessão
 
 1. Usuário e e-mail são normalizados e validados; a senha precisa de 12–128 caracteres e variedade de classes.
 2. A senha é derivada por `scrypt` com salt aleatório individual e parâmetros incorporados no formato versionado.
@@ -105,7 +116,7 @@ O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSi
 
 1. HTTPS com cookie `Secure`, gestão externa de segredos e proxy reverso robusto;
 2. recuperação de senha, verificação de e-mail, MFA opcional e política contra senhas vazadas;
-3. autorização de edição/remoção por proprietário, logs e trilha de moderação;
+3. logs persistentes, auditoria e trilha de moderação;
 4. privacidade de contatos e localização menos granular por padrão;
 5. denúncias, reputação e regras contra fraude;
 6. PostgreSQL, migrações formais e rate limiting compartilhado (Redis ou equivalente);
@@ -115,8 +126,8 @@ O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSi
 
 ## Caminho de evolução
 
-- Fase 1: verificação de e-mail, recuperação de senha, perfis, inventário e lista de desejos reais.
-- Fase 2: matching por `oracle_id`, distância geográfica opcional, mensagens e alertas.
+- Fase 1: verificação de e-mail, recuperação de senha e inventário estruturado.
+- Fase 2: distância geográfica opcional, mensagens e alertas.
 - Fase 3: moderação, reputação, métricas e aplicativo instalável.
 - Fase 4, somente se validado: pagamento/frete intermediado, com análise jurídica, fiscal e antifraude.
 
