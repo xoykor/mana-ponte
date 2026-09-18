@@ -80,6 +80,5 @@ CREATE INDEX IF NOT EXISTS idx_users_location ON users(state, city);
 CREATE INDEX IF NOT EXISTS idx_listings_card ON listings(card_id);
 CREATE INDEX IF NOT EXISTS idx_listings_mode ON listings(mode);
 CREATE INDEX IF NOT EXISTS idx_wants_card ON wants(card_id);
-CREATE INDEX IF NOT EXISTS idx_listing_photos_listing ON listing_photos(listing_id, position);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
