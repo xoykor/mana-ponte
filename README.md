@@ -2,11 +2,15 @@
 
 Protótipo funcional de uma vitrine comunitária brasileira para jogadores de Magic: The Gathering encontrarem quem possui — ou procura — uma impressão específica. A negociação acontece diretamente entre jogadores; o produto não intermedeia pagamentos no MVP.
 
-## Site publicado
+## Frontend e GitHub Pages
+
+URL prevista quando Pages estiver habilitado:
 
 **https://xoykor.github.io/mana-ponte/**
 
-O GitHub Pages executa `public/`. Por padrão ele funciona como demonstração com JSON e `localStorage`, mas o mesmo frontend pode usar uma API pública configurando `window.MANAPONTE_API_BASE` em `public/config.js`. Quando uma API é configurada, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
+O frontend em `public/` está pronto para GitHub Pages. No estado atual do repositório, o próprio GitHub informou que o site Pages ainda não foi habilitado; por isso o workflow detecta essa situação e encerra sem tratar a ausência de Pages como falha. Para publicar, habilite **Settings → Pages → Build and deployment → Source: GitHub Actions** e execute novamente o workflow `Publicar no GitHub Pages`.
+
+Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real.
 
 ## Executar
 
