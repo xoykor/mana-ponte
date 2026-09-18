@@ -409,6 +409,97 @@ class ApiTest(unittest.TestCase):
             match["display_name"],
         )
 
+    def test_listing_language_filter_uses_print_language(self):
+        """Idioma do anúncio vem da impressão e pode filtrar a busca pública."""
+
+        self.login_demo()
+
+        with closing(get_connection(self.db)) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO cards(
+                    scryfall_id,
+                    oracle_id,
+                    name,
+                    set_code,
+                    set_name,
+                    collector_number,
+                    language,
+                    rarity,
+                    image_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "test-pt-print",
+                    "test-language-oracle",
+                    "Carta de Teste PT",
+                    "tst",
+                    "Teste",
+                    "1",
+                    "pt",
+                    "common",
+                    "https://example.test/card.jpg",
+                ),
+            )
+            card_id = cursor.lastrowid
+            conn.commit()
+
+        listing_id = None
+        try:
+            status, created = self.request(
+                "POST",
+                "/api/listings",
+                {
+                    "card_id": card_id,
+                    "title": "Impressão em português",
+                    "condition": "NM",
+                    "mode": "venda",
+                    # O cliente tenta mentir; o catálogo deve prevalecer.
+                    "language": "en",
+                },
+                csrf=self.csrf,
+            )
+            self.assertEqual(status, 201)
+            listing_id = created["id"]
+
+            status, portuguese = self.request(
+                "GET",
+                "/api/listings?lang=pt&limit=100",
+            )
+            self.assertEqual(status, 200)
+            selected = next(
+                item
+                for item in portuguese["listings"]
+                if item["id"] == listing_id
+            )
+            self.assertEqual(selected["language"], "pt")
+            self.assertTrue(
+                all(item["language"].lower() == "pt"
+                    for item in portuguese["listings"])
+            )
+
+            status, english = self.request(
+                "GET",
+                "/api/listings?lang=en&limit=100",
+            )
+            self.assertEqual(status, 200)
+            self.assertNotIn(
+                listing_id,
+                {item["id"] for item in english["listings"]},
+            )
+        finally:
+            with closing(get_connection(self.db)) as conn:
+                if listing_id is not None:
+                    conn.execute(
+                        "DELETE FROM listings WHERE id = ?",
+                        (listing_id,),
+                    )
+                conn.execute(
+                    "DELETE FROM cards WHERE id = ?",
+                    (card_id,),
+                )
+                conn.commit()
+
     def test_listing_mode_filter_includes_both_mode(self):
         """Venda/troca incluem anúncios marcados como ambos."""
 
