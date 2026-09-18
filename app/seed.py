@@ -220,7 +220,7 @@ LISTINGS = [
     (
         5,
         6,
-        "Swords to Plowshares",
+        "Stoneforge Mystic",
         "Envio por carta registrada.",
         1800,
         "NM",
@@ -365,7 +365,7 @@ def _seed_listings(connection, ordered_card_ids: list[int]) -> None:
                 condition,
                 language,
                 mode,
-                "#contato",
+                "https://example.com/contato",
             ),
         )
 

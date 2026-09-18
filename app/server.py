@@ -371,6 +371,27 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
+    def allowed_cors_origin(self) -> str | None:
+        """Retorna a origem permitida para uma chamada cross-origin."""
+
+        origin = self.headers.get("Origin", "").strip()
+        configured = {
+            item.strip()
+            for item in os.environ.get("MANAPONTE_ALLOWED_ORIGIN", "").split(",")
+            if item.strip()
+        }
+        return origin if origin and origin in configured else None
+
+    def send_cors_headers(self) -> None:
+        """Emite CORS somente para origens explicitamente configuradas."""
+
+        origin = self.allowed_cors_origin()
+        if not origin:
+            return
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Vary", "Origin")
+
     def send_json(
         self,
         payload,
@@ -397,6 +418,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         for name, value in headers:
             self.send_header(name, value)
 
+        self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -503,11 +525,32 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         secure_values = {"1", "true", "yes"}
         secure = os.environ.get("MANAPONTE_SECURE_COOKIES", "").lower() in secure_values
+        cross_site = (
+            os.environ.get("MANAPONTE_CROSS_SITE_COOKIES", "").lower()
+            in secure_values
+        )
+        if cross_site:
+            secure = True
+        same_site = "None" if cross_site else "Lax"
         cookie = (
             f"mp_session={token}; Path=/; Max-Age={max_age}; "
-            "HttpOnly; SameSite=Lax"
+            f"HttpOnly; SameSite={same_site}"
         )
         return cookie + ("; Secure" if secure else "")
+
+    def do_OPTIONS(self) -> None:
+        """Responde ao preflight usado pelo frontend hospedado em outro domínio."""
+
+        if not urlsplit(self.path).path.startswith("/api/"):
+            return self.send_error(404)
+
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_cors_headers()
+        self.end_headers()
 
     def do_GET(self) -> None:
         """Despacha rotas GET da API ou serve um arquivo estático."""
@@ -525,6 +568,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.get_sets()
             if path == "/api/listings":
                 return self.get_listings()
+            if path == "/api/wants":
+                return self.get_wants()
             if path == "/api/matches":
                 return self.get_matches()
             if path.startswith("/api/"):
@@ -557,6 +602,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 return self.logout()
             if path == "/api/listings":
                 return self.create_listing(data)
+            if path == "/api/wants":
+                return self.create_want(data)
 
             return self.send_json({"error": "Rota não encontrada"}, 404)
         except OverflowError as error:
@@ -565,6 +612,49 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
             )
         except (json.JSONDecodeError, ValueError, TypeError) as error:
+            return self.send_json({"error": str(error)}, 400)
+
+    def do_PATCH(self) -> None:
+        """Atualiza perfil ou anúncio pertencente ao usuário autenticado."""
+
+        path = urlsplit(self.path).path
+        try:
+            data = self.read_json()
+            if path == "/api/profile":
+                return self.update_profile(data)
+            if path.startswith("/api/listings/"):
+                listing_id = path.removeprefix("/api/listings/")
+                if not listing_id or "/" in listing_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.update_listing(int(listing_id), data)
+
+            return self.send_json({"error": "Rota não encontrada"}, 404)
+        except OverflowError as error:
+            return self.send_json(
+                {"error": str(error)},
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+        except (json.JSONDecodeError, ValueError, TypeError) as error:
+            return self.send_json({"error": str(error)}, 400)
+
+    def do_DELETE(self) -> None:
+        """Remove recursos mutáveis pertencentes ao usuário autenticado."""
+
+        path = urlsplit(self.path).path
+        try:
+            if path.startswith("/api/wants/"):
+                want_id = path.removeprefix("/api/wants/")
+                if not want_id or "/" in want_id:
+                    raise ValueError("ID de desejo inválido")
+                return self.delete_want(int(want_id))
+            if path.startswith("/api/listings/"):
+                listing_id = path.removeprefix("/api/listings/")
+                if not listing_id or "/" in listing_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.delete_listing(int(listing_id))
+
+            return self.send_json({"error": "Rota não encontrada"}, 404)
+        except (ValueError, TypeError) as error:
             return self.send_json({"error": str(error)}, 400)
 
     def auth_payload(self, session: dict) -> dict:
@@ -733,6 +823,45 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             (("Set-Cookie", self.session_cookie("", 0)),),
         )
 
+    def update_profile(self, data: dict) -> None:
+        """Atualiza os dados públicos básicos do usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Não autenticado"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        display_name = str(
+            data.get("display_name", session["display_name"])
+        ).strip()
+        city = str(data.get("city", session["city"])).strip()
+        state = str(data.get("state", session["state"])).strip().upper()
+
+        if (
+            not 2 <= len(display_name) <= 80
+            or not 2 <= len(city) <= 80
+            or state not in BRAZIL_STATES
+        ):
+            raise ValueError("Nome, cidade ou UF inválidos")
+
+        connection = self.account_connection()
+        try:
+            connection.execute(
+                """
+                UPDATE users
+                SET display_name = ?, city = ?, state = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (display_name, city, state, session["user_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        refreshed = get_session(self.session_token(), self.accounts_path())
+        return self.send_json(self.auth_payload(refreshed))
+
     def get_cards(self) -> None:
         """Busca impressões locais e enriquece a busca pelo Scryfall.
 
@@ -854,13 +983,37 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             "set": ("c.set_code = ? COLLATE NOCASE", str),
             "city": ("u.city = ? COLLATE NOCASE", str),
             "state": ("u.state = ? COLLATE NOCASE", str),
-            "mode": ("l.mode = ?", str),
         }
 
         for key, (sql, converter) in filters.items():
             if query_params.get(key):
                 clauses.append(sql)
                 values.append(converter(query_params[key]))
+
+        mine = query_params.get("mine", "").strip().lower()
+        if mine in {"1", "true", "yes"}:
+            session = self.current_session()
+            if not session:
+                return self.send_json(
+                    {"error": "Faça login para ver seus anúncios"},
+                    401,
+                )
+            clauses.append("l.user_id = ?")
+            values.append(session["user_id"])
+
+        requested_mode = query_params.get("mode", "").strip()
+        if requested_mode:
+            if requested_mode == "venda":
+                clauses.append("l.mode IN (?, ?)")
+                values.extend(("venda", "ambos"))
+            elif requested_mode == "troca":
+                clauses.append("l.mode IN (?, ?)")
+                values.extend(("troca", "ambos"))
+            elif requested_mode == "ambos":
+                clauses.append("l.mode = ?")
+                values.append("ambos")
+            else:
+                raise ValueError("Modalidade inválida")
 
         page = positive_int(query_params.get("page"), 1, 100000)
         limit = positive_int(query_params.get("limit"), 24, 100)
@@ -888,6 +1041,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 SELECT
                     l.id,
                     l.card_id,
+                    l.user_id,
                     c.name,
                     c.set_code,
                     c.set_name,
@@ -920,45 +1074,292 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             {"listings": found, "total": total, "page": page, "limit": limit}
         )
 
-    def get_matches(self) -> None:
-        """Retorna ofertas ligadas a uma impressão específica."""
+    def get_wants(self) -> None:
+        """Lista os desejos do usuário autenticado."""
 
-        card_id = self.params().get("card_id")
-        if not card_id:
-            raise ValueError("card_id é obrigatório")
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para ver seus desejos"}, 401)
+
+        query_params = self.params()
+        page = positive_int(query_params.get("page"), 1, 100000)
+        limit = positive_int(query_params.get("limit"), 24, 100)
+        cards_table = self.cards_table()
 
         connection = self.listings_connection()
         try:
-            cards_table = self.cards_table()
-            users_table = self.users_table()
+            total = connection.execute(
+                "SELECT COUNT(*) FROM wants WHERE user_id = ?",
+                (session["user_id"],),
+            ).fetchone()[0]
             found = rows(
                 connection.execute(
                     f"""
                     SELECT
-                        l.id AS listing_id,
-                        l.card_id,
+                        w.id,
+                        w.card_id,
+                        c.oracle_id,
                         c.name,
+                        c.set_code,
+                        c.set_name,
+                        c.collector_number,
+                        c.language,
                         c.image_url,
-                        l.title,
-                        l.price_cents,
-                        l.condition,
-                        l.mode,
-                        u.display_name,
-                        u.city,
-                        u.state
-                    FROM listings AS l
-                    JOIN {cards_table} AS c ON c.id = l.card_id
-                    JOIN {users_table} AS u ON u.id = l.user_id
-                    WHERE l.card_id = ?
-                    ORDER BY u.state, u.city
+                        w.max_price_cents,
+                        w.desired_condition,
+                        w.mode,
+                        w.created_at
+                    FROM wants AS w
+                    JOIN {cards_table} AS c ON c.id = w.card_id
+                    WHERE w.user_id = ?
+                    ORDER BY w.created_at DESC, w.id DESC
+                    LIMIT ? OFFSET ?
                     """,
-                    (int(card_id),),
+                    (session["user_id"], limit, (page - 1) * limit),
                 )
             )
         finally:
             connection.close()
 
-        return self.send_json({"matches": found, "total": len(found)})
+        return self.send_json(
+            {"wants": found, "total": total, "page": page, "limit": limit}
+        )
+
+    def create_want(self, data: dict) -> None:
+        """Cria ou atualiza um desejo do usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para salvar desejos"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        try:
+            card_id = int(data["card_id"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("card_id é obrigatório e numérico") from error
+
+        raw_max_price = data.get("max_price_cents")
+        max_price_cents = (
+            None if raw_max_price in (None, "") else int(raw_max_price)
+        )
+        if max_price_cents is not None and max_price_cents < 0:
+            raise ValueError("Preço máximo não pode ser negativo")
+
+        desired_condition = data.get("desired_condition")
+        if desired_condition in ("", None):
+            desired_condition = None
+        elif desired_condition not in {"NM", "SP", "MP", "HP", "DMG"}:
+            raise ValueError("Condição desejada inválida")
+
+        mode = str(data.get("mode", "ambos")).strip().lower()
+        if mode not in {"compra", "troca", "ambos"}:
+            raise ValueError("Modalidade de desejo inválida")
+
+        connection = self.listings_connection()
+        try:
+            cards_table = self.cards_table()
+            card_exists = connection.execute(
+                f"SELECT 1 FROM {cards_table} WHERE id = ?",
+                (card_id,),
+            ).fetchone()
+            if not card_exists:
+                raise ValueError("Carta não encontrada")
+
+            connection.execute(
+                """
+                INSERT INTO wants(
+                    card_id,
+                    user_id,
+                    max_price_cents,
+                    desired_condition,
+                    mode
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(card_id, user_id) DO UPDATE SET
+                    max_price_cents = excluded.max_price_cents,
+                    desired_condition = excluded.desired_condition,
+                    mode = excluded.mode
+                """,
+                (
+                    card_id,
+                    session["user_id"],
+                    max_price_cents,
+                    desired_condition,
+                    mode,
+                ),
+            )
+            connection.commit()
+            want_id = connection.execute(
+                "SELECT id FROM wants WHERE card_id = ? AND user_id = ?",
+                (card_id, session["user_id"]),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
+        return self.send_json(
+            {"id": want_id, "message": "Desejo salvo"},
+            201,
+        )
+
+    def delete_want(self, want_id: int) -> None:
+        """Remove um desejo, sem permitir apagar o desejo de outro usuário."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para remover desejos"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        connection = self.listings_connection()
+        try:
+            cursor = connection.execute(
+                "DELETE FROM wants WHERE id = ? AND user_id = ?",
+                (want_id, session["user_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        if cursor.rowcount == 0:
+            return self.send_json({"error": "Desejo não encontrado"}, 404)
+        return self.send_json({"message": "Desejo removido"})
+
+    def get_matches(self) -> None:
+        """Cruza desejos com ofertas ou busca equivalentes de uma carta."""
+
+        card_id = self.params().get("card_id")
+        connection = self.listings_connection()
+        try:
+            cards_table = self.cards_table()
+            users_table = self.users_table()
+
+            if card_id:
+                found = rows(
+                    connection.execute(
+                        f"""
+                        SELECT
+                            l.id AS listing_id,
+                            l.card_id,
+                            c.oracle_id,
+                            c.name,
+                            c.set_code,
+                            c.set_name,
+                            c.image_url,
+                            l.title,
+                            l.price_cents,
+                            l.condition,
+                            l.mode,
+                            l.contact_url,
+                            u.display_name,
+                            u.city,
+                            u.state
+                        FROM {cards_table} AS target
+                        JOIN {cards_table} AS c
+                          ON c.id = target.id
+                          OR (
+                              target.oracle_id IS NOT NULL
+                              AND c.oracle_id = target.oracle_id
+                          )
+                        JOIN listings AS l ON l.card_id = c.id
+                        JOIN {users_table} AS u ON u.id = l.user_id
+                        WHERE target.id = ?
+                        ORDER BY u.state, u.city, l.id DESC
+                        """,
+                        (int(card_id),),
+                    )
+                )
+                return self.send_json(
+                    {
+                        "matches": found,
+                        "total": len(found),
+                        "basis": "oracle_id",
+                    }
+                )
+
+            session = self.current_session()
+            if not session:
+                return self.send_json(
+                    {"error": "Faça login para ver matches dos seus desejos"},
+                    401,
+                )
+
+            found = rows(
+                connection.execute(
+                    f"""
+                    SELECT
+                        w.id AS want_id,
+                        w.card_id AS wanted_card_id,
+                        wanted.name AS wanted_name,
+                        w.mode AS want_mode,
+                        w.max_price_cents,
+                        w.desired_condition,
+                        l.id AS listing_id,
+                        l.card_id,
+                        offered.name,
+                        offered.set_code,
+                        offered.set_name,
+                        offered.image_url,
+                        l.title,
+                        l.price_cents,
+                        l.condition,
+                        l.mode,
+                        l.contact_url,
+                        u.display_name,
+                        u.city,
+                        u.state
+                    FROM wants AS w
+                    JOIN {cards_table} AS wanted ON wanted.id = w.card_id
+                    JOIN {cards_table} AS offered
+                      ON offered.id = wanted.id
+                      OR (
+                          wanted.oracle_id IS NOT NULL
+                          AND offered.oracle_id = wanted.oracle_id
+                      )
+                    JOIN listings AS l ON l.card_id = offered.id
+                    JOIN {users_table} AS u ON u.id = l.user_id
+                    WHERE w.user_id = ?
+                      AND l.user_id <> w.user_id
+                      AND (
+                          w.mode = 'ambos'
+                          OR (w.mode = 'compra' AND l.mode IN ('venda', 'ambos'))
+                          OR (w.mode = 'troca' AND l.mode IN ('troca', 'ambos'))
+                      )
+                      AND (
+                          w.max_price_cents IS NULL
+                          OR l.price_cents IS NULL
+                          OR l.price_cents <= w.max_price_cents
+                      )
+                      AND (
+                          w.desired_condition IS NULL
+                          OR (
+                              CASE l.condition
+                                  WHEN 'NM' THEN 5
+                                  WHEN 'SP' THEN 4
+                                  WHEN 'MP' THEN 3
+                                  WHEN 'HP' THEN 2
+                                  WHEN 'DMG' THEN 1
+                              END
+                              >=
+                              CASE w.desired_condition
+                                  WHEN 'NM' THEN 5
+                                  WHEN 'SP' THEN 4
+                                  WHEN 'MP' THEN 3
+                                  WHEN 'HP' THEN 2
+                                  WHEN 'DMG' THEN 1
+                              END
+                          )
+                      )
+                    ORDER BY w.id DESC, u.state, u.city, l.id DESC
+                    """,
+                    (session["user_id"],),
+                )
+            )
+        finally:
+            connection.close()
+
+        return self.send_json(
+            {"matches": found, "total": len(found), "basis": "wants"}
+        )
 
     def create_listing(self, data: dict) -> None:
         """Valida e cria uma oferta para o usuário da sessão atual."""
@@ -1048,6 +1449,114 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             {"id": listing_id, "message": "Anúncio criado"},
             201,
         )
+
+    def update_listing(self, listing_id: int, data: dict) -> None:
+        """Edita somente um anúncio pertencente ao usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para editar anúncios"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        connection = self.listings_connection()
+        try:
+            current = connection.execute(
+                "SELECT * FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            ).fetchone()
+            if not current:
+                return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+            card_id = int(data.get("card_id", current["card_id"]))
+            title = str(data.get("title", current["title"])).strip()
+            description = str(
+                data.get("description", current["description"])
+            ).strip()
+            condition = data.get("condition", current["condition"])
+            mode = data.get("mode", current["mode"])
+
+            if not 3 <= len(title) <= 120 or len(description) > 1000:
+                raise ValueError(
+                    "Título deve ter 3–120 caracteres e descrição no máximo 1000"
+                )
+            if condition not in {"NM", "SP", "MP", "HP", "DMG"}:
+                raise ValueError("Condição ou modalidade inválida")
+            if mode not in {"venda", "troca", "ambos"}:
+                raise ValueError("Condição ou modalidade inválida")
+
+            raw_price = data.get("price_cents", current["price_cents"])
+            price_cents = None if raw_price in (None, "") else int(raw_price)
+            if price_cents is not None and price_cents < 0:
+                raise ValueError("Preço não pode ser negativo")
+
+            raw_contact = data.get("contact_url", current["contact_url"] or "")
+            contact_url = "" if raw_contact is None else raw_contact
+            if not valid_contact_url(contact_url):
+                raise ValueError(
+                    "URL de contato deve ser vazia ou usar http(s) com host válido"
+                )
+            contact_url = contact_url.strip()
+            if len(contact_url) > 300:
+                raise ValueError("URL de contato deve ter no máximo 300 caracteres")
+
+            cards_table = self.cards_table()
+            card_exists = connection.execute(
+                f"SELECT 1 FROM {cards_table} WHERE id = ?",
+                (card_id,),
+            ).fetchone()
+            if not card_exists:
+                raise ValueError("Carta não encontrada")
+
+            language = str(data.get("language", current["language"]))[:8]
+            connection.execute(
+                """
+                UPDATE listings
+                SET card_id = ?, title = ?, description = ?, price_cents = ?,
+                    condition = ?, language = ?, mode = ?, contact_url = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (
+                    card_id,
+                    title,
+                    description,
+                    price_cents,
+                    condition,
+                    language,
+                    mode,
+                    contact_url,
+                    listing_id,
+                    session["user_id"],
+                ),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        return self.send_json({"id": listing_id, "message": "Anúncio atualizado"})
+
+    def delete_listing(self, listing_id: int) -> None:
+        """Remove somente um anúncio pertencente ao usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para remover anúncios"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        connection = self.listings_connection()
+        try:
+            cursor = connection.execute(
+                "DELETE FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        if cursor.rowcount == 0:
+            return self.send_json({"error": "Anúncio não encontrado"}, 404)
+        return self.send_json({"message": "Anúncio removido"})
 
     def serve_static(self, path: str) -> None:
         """Serve um arquivo de ``public/`` sem permitir sair do diretório."""

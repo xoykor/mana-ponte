@@ -16,15 +16,32 @@
 // Atalho para encontrar um elemento do documento por seletor CSS.
 const $ = selector => document.querySelector(selector);
 
-// GitHub Pages e arquivos locais não conseguem executar o backend Python.
-// Nesses ambientes, a página entra em modo de demonstração automaticamente.
+// Uma API pública pode ser configurada em config.js. Sem ela, o GitHub Pages
+// continua funcionando como demonstração estática.
+const API_BASE = String(window.MANAPONTE_API_BASE || "")
+  .trim()
+  .replace(/\/+$/, "");
+const queryFlags = new URLSearchParams(location.search);
 const STATIC_MODE =
-  location.hostname.endsWith("github.io") ||
-  location.protocol === "file:" ||
-  new URLSearchParams(location.search).has("static");
+  queryFlags.has("static") ||
+  (
+    !API_BASE &&
+    (location.hostname.endsWith("github.io") || location.protocol === "file:")
+  );
+
+function apiUrl(path) {
+  return API_BASE && String(path).startsWith("/api/")
+    ? `${API_BASE}${path}`
+    : path;
+}
 
 // A chave guarda os anúncios criados localmente no modo demonstração.
 const STORAGE_KEY = "manaponte-demo-listings";
+const BRAZIL_STATES = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
+  "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
+  "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+];
 
 // Estado carregado do catálogo e da sessão atual.
 let cards = [];
@@ -34,6 +51,9 @@ let mode = "";
 let currentUser = null;
 let csrfToken = null;
 let cardPicker = null;
+let wantCardPicker = null;
+let editingListingId = null;
+let myListingsById = new Map();
 const LISTINGS_PAGE_SIZE = 24;
 let listingsPage = 1;
 let listingsTotal = 0;
@@ -110,7 +130,10 @@ function cardLanguage(card) {
  * quando o servidor responde HTML, erro HTTP ou JSON de erro da API.
  */
 async function getJson(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(apiUrl(url), {
+    credentials: "include",
+    ...(options || {}),
+  });
   const type = response.headers.get("content-type") || "";
 
   if (!type.includes("application/json")) {
@@ -265,9 +288,27 @@ function filters() {
   return {
     card: $("#search").value.trim(),
     set: $("#set").value,
+    city: $("#city").value.trim(),
     state: $("#state").value,
     mode,
   };
+}
+
+
+/**
+ * "Ambos" representa uma oferta compatível com venda e com troca.
+ */
+function listingModeMatches(itemMode, selectedMode) {
+  if (!selectedMode) {
+    return true;
+  }
+  if (selectedMode === "venda") {
+    return itemMode === "venda" || itemMode === "ambos";
+  }
+  if (selectedMode === "troca") {
+    return itemMode === "troca" || itemMode === "ambos";
+  }
+  return itemMode === selectedMode;
 }
 
 
@@ -298,8 +339,11 @@ async function loadListings({ page = 1 } = {}) {
         (!selected.card ||
           String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
         (!selected.set || item.set_code === selected.set) &&
+        (!selected.city ||
+          String(item.city || "").toLocaleLowerCase() ===
+            selected.city.toLocaleLowerCase()) &&
         (!selected.state || item.state === selected.state) &&
-        (!selected.mode || item.mode === selected.mode)
+        listingModeMatches(item.mode, selected.mode)
       );
 
       listingsPage = 1;
@@ -348,8 +392,26 @@ async function loadListings({ page = 1 } = {}) {
 }
 
 
+function populateBrazilStates() {
+  document.querySelectorAll("[data-brazil-states]").forEach(select => {
+    const selected = select.value;
+    select.querySelectorAll("option:not([value=''])").forEach(option => {
+      option.remove();
+    });
+
+    for (const state of BRAZIL_STATES) {
+      const option = document.createElement("option");
+      option.value = state;
+      option.textContent = state;
+      select.append(option);
+    }
+    select.value = selected;
+  });
+}
+
+
 /**
- * Preenche o filtro de coleções e inicializa o seletor de cartas do modal.
+ * Preenche o filtro de coleções e inicializa os seletores de cartas.
  */
 function populateCatalog() {
   // A API fornece uma lista completa de sets. O fallback usa os cards já
@@ -374,7 +436,13 @@ function populateCatalog() {
   if (window.ManaBridgeCardPicker) {
     cardPicker = window.ManaBridgeCardPicker.create({
       root: $("#cardPicker"),
-      source: $("#cardPicker").dataset.source || "/api/cards",
+      source: apiUrl($("#cardPicker").dataset.source || "/api/cards"),
+      staticCards: STATIC_MODE ? cards : null,
+    });
+
+    wantCardPicker = window.ManaBridgeCardPicker.create({
+      root: $("#wantCardPicker"),
+      source: apiUrl("/api/cards"),
       staticCards: STATIC_MODE ? cards : null,
     });
   }
@@ -391,6 +459,7 @@ function setAuth(data) {
   // Os três controles abaixo representam estados mutuamente exclusivos.
   $("#userBadge").hidden = !currentUser;
   $("#logoutButton").hidden = !currentUser;
+  $("#accountButton").hidden = !currentUser;
   $("#authButton").hidden = !!currentUser;
   $("#userBadge").textContent = currentUser
     ? `Olá, ${currentUser.display_name}`
@@ -425,6 +494,8 @@ async function loadSession() {
  * Carrega os dados iniciais adequados ao ambiente atual.
  */
 async function loadData() {
+  populateBrazilStates();
+
   if (STATIC_MODE) {
     // O visitante do Pages recebe uma indicação explícita sobre as limitações.
     $("#staticNotice").hidden = false;
@@ -476,29 +547,31 @@ $("#nextListings")?.addEventListener("click", () => {
   }
 });
 
-// Os chips alteram o filtro de modalidade e destacam o botão ativo.
-document.querySelectorAll(".chip").forEach(button => {
+// Somente os chips da vitrine alteram o filtro de modalidade.
+document.querySelectorAll(".chips .chip[data-mode]").forEach(button => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".chip").forEach(item => {
+    document.querySelectorAll(".chips .chip[data-mode]").forEach(item => {
       item.classList.remove("active");
     });
 
     button.classList.add("active");
-    mode = button.dataset.mode;
+    mode = button.dataset.mode || "";
     loadListings();
   });
 });
 
 
-// Referências aos dois diálogos modais da página.
+// Referências aos diálogos da página.
 const modal = $("#modal");
 const authModal = $("#authModal");
+const accountModal = $("#accountModal");
+const wantModal = $("#wantModal");
 
 
 /**
- * Abre o formulário de anúncio ou, se necessário, pede autenticação primeiro.
+ * Abre um anúncio novo ou reutiliza o mesmo formulário para edição.
  */
-$("#openModal").onclick = () => {
+function openNewListing() {
   if (!STATIC_MODE && !currentUser) {
     $("#authStatus").textContent =
       "Entre ou crie uma conta para anunciar.";
@@ -506,13 +579,46 @@ $("#openModal").onclick = () => {
     return;
   }
 
-  // Cada abertura começa com um formulário limpo e sem carta selecionada.
+  editingListingId = null;
   $("#listingForm").reset();
+  $("#listingModalTitle").textContent = "Anunciar carta";
+  $("#listingSubmitButton").textContent = "Publicar oferta";
   $("#formStatus").textContent = "";
   cardPicker?.clear();
   modal.showModal();
   cardPicker?.focus();
-};
+}
+
+function openListingForEdit(item) {
+  editingListingId = item.id;
+  const form = $("#listingForm");
+  form.reset();
+  $("#listingModalTitle").textContent = "Editar anúncio";
+  $("#listingSubmitButton").textContent = "Salvar alterações";
+  $("#formStatus").textContent = "";
+
+  cardPicker?.select({
+    id: item.card_id,
+    name: item.name,
+    set_code: item.set_code,
+    set_name: item.set_name,
+    image_url: item.image_url,
+    language: item.language,
+  });
+  form.elements.title.value = item.title || "";
+  form.elements.description.value = item.description || "";
+  form.elements.price.value = item.price_cents == null
+    ? ""
+    : (item.price_cents / 100).toFixed(2);
+  form.elements.condition.value = item.condition;
+  form.elements.mode.value = item.mode;
+  form.elements.contact_url.value = item.contact_url || "";
+
+  accountModal.close();
+  modal.showModal();
+}
+
+$("#openModal").onclick = openNewListing;
 
 
 // O botão de fechar usa o comportamento nativo do elemento <dialog>.
@@ -583,8 +689,11 @@ $("#listingForm").addEventListener("submit", async event => {
       );
     } else {
       // O token CSRF acompanha operações que alteram dados no backend.
-      await getJson("/api/listings", {
-        method: "POST",
+      const endpoint = editingListingId
+        ? `/api/listings/${editingListingId}`
+        : "/api/listings";
+      await getJson(endpoint, {
+        method: editingListingId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken,
@@ -595,8 +704,14 @@ $("#listingForm").addEventListener("submit", async event => {
 
     $("#formStatus").textContent = STATIC_MODE
       ? "Oferta salva neste navegador."
-      : "Oferta publicada no protótipo.";
+      : editingListingId
+        ? "Anúncio atualizado."
+        : "Oferta publicada.";
+    editingListingId = null;
     await loadListings();
+    if (accountModal.open) {
+      await loadAccountData();
+    }
 
     // Um pequeno atraso permite que o visitante leia a confirmação.
     setTimeout(() => modal.close(), 700);
@@ -605,6 +720,249 @@ $("#listingForm").addEventListener("submit", async event => {
   }
 });
 
+
+
+// ---------- Área autenticada ----------
+
+function renderAccountListings(listings) {
+  const entries = Array.isArray(listings) ? listings : [];
+  myListingsById = new Map(entries.map(item => [Number(item.id), item]));
+
+  if (!entries.length) {
+    $("#myListings").innerHTML =
+      '<p class="empty-state">Você ainda não publicou anúncios.</p>';
+    return;
+  }
+
+  $("#myListings").innerHTML = entries.map(item => `
+    <article class="account-item">
+      <img src="${esc(item.image_url)}" alt="">
+      <div>
+        <h4>${esc(item.title || item.name)}</h4>
+        <p class="meta">
+          ${esc(item.name)} · ${esc(String(item.set_code || "").toUpperCase())}
+          · ${esc(item.condition)} · ${money(item.price_cents)}
+        </p>
+      </div>
+      <div class="inline-actions">
+        <button class="secondary compact" type="button" data-edit-listing="${item.id}">
+          Editar
+        </button>
+        <button class="secondary compact danger" type="button" data-delete-listing="${item.id}">
+          Excluir
+        </button>
+      </div>
+    </article>
+  `).join("");
+
+  $("#myListings").querySelectorAll("[data-edit-listing]").forEach(button => {
+    button.onclick = () => {
+      const item = myListingsById.get(Number(button.dataset.editListing));
+      if (item) {
+        openListingForEdit(item);
+      }
+    };
+  });
+
+  $("#myListings").querySelectorAll("[data-delete-listing]").forEach(button => {
+    button.onclick = async () => {
+      const id = Number(button.dataset.deleteListing);
+      if (!confirm("Excluir este anúncio?")) {
+        return;
+      }
+      try {
+        await getJson(`/api/listings/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken },
+        });
+        await Promise.all([loadListings(), loadAccountData()]);
+      } catch (error) {
+        $("#accountStatus").textContent = error.message;
+      }
+    };
+  });
+}
+
+function renderWants(wants) {
+  const entries = Array.isArray(wants) ? wants : [];
+  if (!entries.length) {
+    $("#wantsList").innerHTML =
+      '<p class="empty-state">Sua lista de desejos está vazia.</p>';
+    return;
+  }
+
+  $("#wantsList").innerHTML = entries.map(item => `
+    <article class="account-item">
+      <img src="${esc(item.image_url)}" alt="">
+      <div>
+        <h4>${esc(item.name)}</h4>
+        <p class="meta">
+          ${esc(String(item.set_code || "").toUpperCase())}
+          · ${esc(item.mode)}
+          · máximo: ${money(item.max_price_cents)}
+        </p>
+      </div>
+      <div class="inline-actions">
+        <button class="secondary compact danger" type="button" data-delete-want="${item.id}">
+          Remover
+        </button>
+      </div>
+    </article>
+  `).join("");
+
+  $("#wantsList").querySelectorAll("[data-delete-want]").forEach(button => {
+    button.onclick = async () => {
+      try {
+        await getJson(`/api/wants/${button.dataset.deleteWant}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken },
+        });
+        await loadAccountData();
+      } catch (error) {
+        $("#accountStatus").textContent = error.message;
+      }
+    };
+  });
+}
+
+function renderMatches(matches) {
+  const entries = Array.isArray(matches) ? matches : [];
+  if (!entries.length) {
+    $("#matchesList").innerHTML =
+      '<p class="empty-state">Nenhuma oferta compatível por enquanto.</p>';
+    return;
+  }
+
+  $("#matchesList").innerHTML = entries.map(item => {
+    const contact = safeContactUrl(item.contact_url);
+    const contactMarkup = contact
+      ? `<a class="contact" href="${esc(contact)}" target="_blank" rel="noopener noreferrer">Contato</a>`
+      : "";
+    return `
+      <article class="account-item">
+        <img src="${esc(item.image_url)}" alt="">
+        <div>
+          <h4>${esc(item.wanted_name || item.name)}</h4>
+          <p class="meta">
+            ${esc(item.title || "Oferta compatível")}
+            · ${esc(item.city)} / ${esc(item.state)}
+            · ${money(item.price_cents)}
+          </p>
+        </div>
+        <div class="inline-actions">${contactMarkup}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadAccountData() {
+  if (!currentUser || STATIC_MODE) {
+    return;
+  }
+
+  $("#accountStatus").textContent = "Atualizando…";
+  try {
+    const [listings, wants, matches] = await Promise.all([
+      getJson("/api/listings?mine=1&limit=100"),
+      getJson("/api/wants?limit=100"),
+      getJson("/api/matches"),
+    ]);
+
+    renderAccountListings(listings.listings);
+    renderWants(wants.wants);
+    renderMatches(matches.matches);
+    $("#accountStatus").textContent = "";
+  } catch (error) {
+    $("#accountStatus").textContent = error.message;
+  }
+}
+
+$("#accountButton").onclick = async () => {
+  if (!currentUser) {
+    return;
+  }
+
+  const form = $("#profileForm");
+  form.elements.display_name.value = currentUser.display_name || "";
+  form.elements.city.value = currentUser.city || "";
+  form.elements.state.value = currentUser.state || "";
+  $("#profileStatus").textContent = "";
+  accountModal.showModal();
+  await loadAccountData();
+};
+
+$("#closeAccount").onclick = () => accountModal.close();
+
+$("#accountNewListing").onclick = () => {
+  accountModal.close();
+  openNewListing();
+};
+
+$("#profileForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  $("#profileStatus").textContent = "Salvando…";
+  try {
+    const data = await getJson("/api/profile", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify(Object.fromEntries(new FormData(event.target))),
+    });
+    setAuth(data);
+    $("#profileStatus").textContent = "Perfil atualizado.";
+    await loadListings();
+  } catch (error) {
+    $("#profileStatus").textContent = error.message;
+  }
+});
+
+$("#openWantModal").onclick = () => {
+  $("#wantForm").reset();
+  $("#wantStatus").textContent = "";
+  wantCardPicker?.clear();
+  wantModal.showModal();
+  wantCardPicker?.focus();
+};
+
+$("#closeWantModal").onclick = () => wantModal.close();
+
+$("#wantForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = Object.fromEntries(new FormData(event.target));
+  const card = wantCardPicker?.getSelectedCard();
+
+  if (!card) {
+    $("#wantStatus").textContent = "Selecione uma carta.";
+    wantCardPicker?.focus();
+    return;
+  }
+
+  $("#wantStatus").textContent = "Salvando…";
+  try {
+    await getJson("/api/wants", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({
+        card_id: Number(form.card_id),
+        max_price_cents: form.max_price
+          ? Math.round(Number(form.max_price) * 100)
+          : null,
+        desired_condition: form.desired_condition || null,
+        mode: form.mode,
+      }),
+    });
+    $("#wantStatus").textContent = "Desejo salvo.";
+    await loadAccountData();
+    setTimeout(() => wantModal.close(), 500);
+  } catch (error) {
+    $("#wantStatus").textContent = error.message;
+  }
+});
 
 // Abre a tela de autenticação com o painel correto para o ambiente.
 $("#authButton").onclick = () => {
@@ -686,6 +1044,7 @@ $("#logoutButton").onclick = async () => {
       headers: { "X-CSRF-Token": csrfToken },
     });
     setAuth(null);
+    accountModal.close();
   } catch (error) {
     alert(error.message);
   }

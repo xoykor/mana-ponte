@@ -298,7 +298,10 @@
         url.searchParams.set("page", String(page));
         url.searchParams.set("limit", "20");
 
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, {
+          signal: controller.signal,
+          credentials: "include",
+        });
         if (!response.ok) {
           throw new Error("Não foi possível consultar o catálogo.");
         }

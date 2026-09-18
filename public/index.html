@@ -27,6 +27,7 @@
       <div class="auth-actions">
         <span id="userBadge" class="user-badge" hidden></span>
         <button class="secondary compact" id="authButton">Entrar</button>
+        <button class="secondary compact" id="accountButton" hidden>Minha conta</button>
         <button class="secondary compact" id="logoutButton" hidden>Sair</button>
         <button class="button compact" id="openModal">Anunciar carta</button>
       </div>
@@ -62,13 +63,18 @@
           </label>
 
           <label>
+            <span>Cidade</span>
+            <input
+              id="city"
+              placeholder="Ex.: Natal"
+              autocomplete="address-level2"
+            >
+          </label>
+
+          <label>
             <span>UF</span>
-            <select id="state">
+            <select id="state" data-brazil-states>
               <option value="">Brasil</option>
-              <option>RN</option>
-              <option>CE</option>
-              <option>PE</option>
-              <option>PB</option>
             </select>
           </label>
 
@@ -158,8 +164,8 @@
       <form id="listingForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Nova oferta</p>
-            <h2>Anunciar carta</h2>
+            <p class="eyebrow">Oferta</p>
+            <h2 id="listingModalTitle">Anunciar carta</h2>
           </div>
           <button
             type="button"
@@ -260,7 +266,7 @@
         <p class="notice">
           Escolha a impressão exata; ela será vinculada à sua oferta.
         </p>
-        <button class="button" type="submit">Publicar oferta</button>
+        <button class="button" id="listingSubmitButton" type="submit">Publicar oferta</button>
         <p id="formStatus" class="status"></p>
       </form>
     </dialog>
@@ -356,20 +362,8 @@
               </label>
               <label>
                 UF
-                <select name="state" required>
+                <select name="state" data-brazil-states required>
                   <option value="">Selecione</option>
-                  <option>RN</option>
-                  <option>CE</option>
-                  <option>PE</option>
-                  <option>PB</option>
-                  <option>SP</option>
-                  <option>RJ</option>
-                  <option>MG</option>
-                  <option>RS</option>
-                  <option>PR</option>
-                  <option>SC</option>
-                  <option>BA</option>
-                  <option>DF</option>
                 </select>
               </label>
             </div>
@@ -397,6 +391,123 @@
       </div>
     </dialog>
 
+    <!-- Área autenticada: perfil, anúncios, desejos e matches. -->
+    <dialog id="accountModal" class="wide-dialog">
+      <div class="account-shell">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Área do jogador</p>
+            <h2>Minha conta</h2>
+          </div>
+          <button type="button" class="close" id="closeAccount" aria-label="Fechar">×</button>
+        </div>
+
+        <form id="profileForm" class="account-section">
+          <h3>Perfil</h3>
+          <label>
+            Nome de exibição
+            <input name="display_name" minlength="2" maxlength="80" required>
+          </label>
+          <div class="two">
+            <label>
+              Cidade
+              <input name="city" minlength="2" maxlength="80" autocomplete="address-level2" required>
+            </label>
+            <label>
+              UF
+              <select name="state" data-brazil-states required>
+                <option value="">Selecione</option>
+              </select>
+            </label>
+          </div>
+          <button class="secondary" type="submit">Salvar perfil</button>
+          <p id="profileStatus" class="status" role="status"></p>
+        </form>
+
+        <section class="account-section">
+          <div class="account-section-head">
+            <h3>Meus anúncios</h3>
+            <button class="button compact" type="button" id="accountNewListing">Novo anúncio</button>
+          </div>
+          <div id="myListings" class="account-list"></div>
+        </section>
+
+        <section class="account-section">
+          <div class="account-section-head">
+            <h3>Lista de desejos</h3>
+            <button class="button compact" type="button" id="openWantModal">Adicionar desejo</button>
+          </div>
+          <div id="wantsList" class="account-list"></div>
+        </section>
+
+        <section class="account-section">
+          <h3>Matches encontrados</h3>
+          <div id="matchesList" class="account-list"></div>
+        </section>
+
+        <p id="accountStatus" class="status" role="status"></p>
+      </div>
+    </dialog>
+
+    <dialog id="wantModal">
+      <form id="wantForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Lista de desejos</p>
+            <h2>Quero esta carta</h2>
+          </div>
+          <button type="button" class="close" id="closeWantModal" aria-label="Fechar">×</button>
+        </div>
+
+        <div class="card-picker" id="wantCardPicker">
+          <label for="wantCardSearch">Carta</label>
+          <input
+            id="wantCardSearch"
+            data-card-search
+            type="search"
+            placeholder="Digite o nome da carta…"
+            autocomplete="off"
+          >
+          <input type="hidden" name="card_id" data-card-id>
+          <div class="card-picker-selected" data-card-selected hidden></div>
+          <div class="card-picker-results" data-card-results role="listbox" aria-label="Resultados da busca"></div>
+          <p class="card-picker-hint" data-card-hint>Digite pelo menos 2 caracteres para buscar no catálogo.</p>
+        </div>
+
+        <div class="two">
+          <label>
+            Quero
+            <select name="mode">
+              <option value="ambos">Comprar ou trocar</option>
+              <option value="compra">Comprar</option>
+              <option value="troca">Trocar</option>
+            </select>
+          </label>
+          <label>
+            Condição mínima
+            <select name="desired_condition">
+              <option value="">Qualquer</option>
+              <option>NM</option>
+              <option>SP</option>
+              <option>MP</option>
+              <option>HP</option>
+              <option>DMG</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Preço máximo em reais
+          <input name="max_price" type="number" min="0" step="0.01" placeholder="Opcional">
+        </label>
+
+        <button class="button" type="submit">Salvar desejo</button>
+        <p id="wantStatus" class="status" role="status"></p>
+      </form>
+    </dialog>
+
+    <!-- Configuração runtime carrega antes da aplicação. -->
+    <script src="config.js"></script>
     <!-- O seletor precisa carregar antes do script que o inicializa. -->
     <script src="card-picker.js" defer></script>
     <script src="app.js" defer></script>

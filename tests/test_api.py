@@ -213,6 +213,327 @@ class ApiTest(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(owner, 1)
 
+    def test_profile_update_requires_csrf_and_refreshes_session(self):
+        """Perfil autenticado atualiza nome e localização da sessão."""
+
+        self.login_demo()
+
+        status, _ = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
+        )
+        self.assertEqual(status, 403)
+
+        status, data = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(data["user"]["display_name"], "Danton Atualizado")
+        self.assertEqual(data["user"]["city"], "Parnamirim")
+
+        status, me = self.request("GET", "/api/auth/me")
+        self.assertEqual(status, 200)
+        self.assertEqual(me["user"]["city"], "Parnamirim")
+
+        # Restaura o fixture para os testes seguintes não dependerem da ordem.
+        status, _ = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Homero", "city": "Natal", "state": "RN"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+    def test_owner_can_list_edit_and_delete_own_listing(self):
+        """mine=1, PATCH e DELETE respeitam o proprietário do anúncio."""
+
+        self.login_demo()
+        status, created = self.request(
+            "POST",
+            "/api/listings",
+            {
+                "card_id": 3,
+                "title": "Bolt editável",
+                "description": "Antes",
+                "condition": "SP",
+                "mode": "venda",
+                "price_cents": 1200,
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+        listing_id = created["id"]
+
+        status, mine = self.request("GET", "/api/listings?mine=1&limit=100")
+        self.assertEqual(status, 200)
+        self.assertIn(listing_id, {item["id"] for item in mine["listings"]})
+        self.assertTrue(
+            all(item["user_id"] == 1 for item in mine["listings"])
+        )
+
+        status, _ = self.request(
+            "PATCH",
+            f"/api/listings/{listing_id}",
+            {
+                "title": "Bolt atualizado",
+                "description": "Depois",
+                "price_cents": 1000,
+                "mode": "ambos",
+            },
+        )
+        self.assertEqual(status, 403)
+
+        status, updated = self.request(
+            "PATCH",
+            f"/api/listings/{listing_id}",
+            {
+                "title": "Bolt atualizado",
+                "description": "Depois",
+                "price_cents": 1000,
+                "mode": "ambos",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["id"], listing_id)
+
+        status, listing_payload = self.request(
+            "GET",
+            f"/api/listings?card_id=3&limit=100",
+        )
+        edited = next(
+            item for item in listing_payload["listings"]
+            if item["id"] == listing_id
+        )
+        self.assertEqual(edited["title"], "Bolt atualizado")
+        self.assertEqual(edited["description"], "Depois")
+        self.assertEqual(edited["price_cents"], 1000)
+        self.assertEqual(edited["mode"], "ambos")
+
+        status, _ = self.request(
+            "DELETE",
+            f"/api/listings/{listing_id}",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+        status, mine = self.request("GET", "/api/listings?mine=1&limit=100")
+        self.assertNotIn(listing_id, {item["id"] for item in mine["listings"]})
+
+    def test_user_cannot_edit_or_delete_another_users_listing(self):
+        """Rotas mutáveis não revelam nem alteram anúncio de outro usuário."""
+
+        self.login_demo()
+
+        # O fixture 2 pertence a Marina, não ao usuário danton.
+        status, payload = self.request(
+            "PATCH",
+            "/api/listings/2",
+            {"title": "Tentativa indevida"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "Anúncio não encontrado")
+
+        status, payload = self.request(
+            "DELETE",
+            "/api/listings/2",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "Anúncio não encontrado")
+
+    def test_listing_mode_filter_includes_both_mode(self):
+        """Venda/troca incluem anúncios marcados como ambos."""
+
+        status, sales = self.request("GET", "/api/listings?mode=venda&limit=100")
+        self.assertEqual(status, 200)
+        self.assertTrue(sales["listings"])
+        self.assertTrue(
+            all(item["mode"] in {"venda", "ambos"} for item in sales["listings"])
+        )
+        self.assertIn("ambos", {item["mode"] for item in sales["listings"]})
+
+        status, trades = self.request("GET", "/api/listings?mode=troca&limit=100")
+        self.assertEqual(status, 200)
+        self.assertTrue(trades["listings"])
+        self.assertTrue(
+            all(item["mode"] in {"troca", "ambos"} for item in trades["listings"])
+        )
+        self.assertIn("ambos", {item["mode"] for item in trades["listings"]})
+
+    def test_wants_crud_and_matching(self):
+        """Desejos autenticados são salvos, casados e removidos."""
+
+        self.login_demo()
+
+        # O seed já contém um desejo por Rhystic Study e uma oferta compatível
+        # de outro usuário; o matching sem card_id cruza wants x listings.
+        status, seeded_matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertEqual(seeded_matches["basis"], "wants")
+        self.assertTrue(
+            any(item["wanted_name"] == "Rhystic Study" for item in seeded_matches["matches"])
+        )
+
+        payload = {
+            "card_id": 4,
+            "max_price_cents": 1000,
+            "desired_condition": "NM",
+            "mode": "compra",
+        }
+
+        status, _ = self.request("POST", "/api/wants", payload)
+        self.assertEqual(status, 403)
+
+        status, created = self.request(
+            "POST",
+            "/api/wants",
+            payload,
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, wants = self.request("GET", "/api/wants")
+        self.assertEqual(status, 200)
+        saved = next(item for item in wants["wants"] if item["id"] == created["id"])
+        self.assertEqual(saved["name"], "Counterspell")
+        self.assertEqual(saved["max_price_cents"], 1000)
+        self.assertEqual(saved["mode"], "compra")
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertTrue(
+            any(
+                item["want_id"] == created["id"]
+                and item["name"] == "Counterspell"
+                and item["mode"] in {"venda", "ambos"}
+                for item in matches["matches"]
+            )
+        )
+
+        status, _ = self.request(
+            "DELETE",
+            f"/api/wants/{created['id']}",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+        status, wants = self.request("GET", "/api/wants")
+        self.assertFalse(any(item["id"] == created["id"] for item in wants["wants"]))
+
+    def test_matching_respects_minimum_condition(self):
+        """Condição mínima aceita exemplares melhores, mas rejeita piores."""
+
+        self.login_demo()
+
+        # Lightning Bolt do fixture está em SP. Um desejo por NM não deve casar.
+        status, created = self.request(
+            "POST",
+            "/api/wants",
+            {
+                "card_id": 3,
+                "desired_condition": "NM",
+                "mode": "compra",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertFalse(
+            any(item["want_id"] == created["id"] for item in matches["matches"])
+        )
+
+        status, _ = self.request(
+            "POST",
+            "/api/wants",
+            {
+                "card_id": 3,
+                "desired_condition": "SP",
+                "mode": "compra",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertTrue(
+            any(item["want_id"] == created["id"] for item in matches["matches"])
+        )
+
+        self.request(
+            "DELETE",
+            f"/api/wants/{created['id']}",
+            csrf=self.csrf,
+        )
+
+    def test_cors_preflight_allows_only_configured_origin(self):
+        """Frontend externo recebe CORS apenas para a origem autorizada."""
+
+        allowed = "https://xoykor.github.io"
+        with patch.dict(
+            "os.environ",
+            {"MANAPONTE_ALLOWED_ORIGIN": allowed},
+            clear=False,
+        ):
+            connection = http.client.HTTPConnection(
+                "127.0.0.1",
+                self.port,
+                timeout=4,
+            )
+            connection.request(
+                "OPTIONS",
+                "/api/auth/login",
+                headers={
+                    "Origin": allowed,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "Content-Type",
+                },
+            )
+            response = connection.getresponse()
+            response.read()
+            self.assertEqual(response.status, 204)
+            self.assertEqual(
+                response.getheader("Access-Control-Allow-Origin"),
+                allowed,
+            )
+            self.assertEqual(
+                response.getheader("Access-Control-Allow-Credentials"),
+                "true",
+            )
+            self.assertIn(
+                "PATCH",
+                response.getheader("Access-Control-Allow-Methods"),
+            )
+            connection.close()
+
+            connection = http.client.HTTPConnection(
+                "127.0.0.1",
+                self.port,
+                timeout=4,
+            )
+            connection.request(
+                "OPTIONS",
+                "/api/auth/login",
+                headers={
+                    "Origin": "https://evil.example",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+            response = connection.getresponse()
+            response.read()
+            self.assertEqual(response.status, 204)
+            self.assertIsNone(
+                response.getheader("Access-Control-Allow-Origin")
+            )
+            connection.close()
+
     def test_public_routes(self):
         """Rotas públicas respondem sem sessão e servem a página inicial."""
 
