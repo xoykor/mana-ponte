@@ -706,6 +706,18 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Perfil", profile_page)
 
+        status, listing_page = self.request("GET", "/anuncio.html?id=2")
+        self.assertEqual(status, 200)
+        self.assertIn(b"An", listing_page)
+
+        status, autocomplete_script = self.request("GET", "/card-autocomplete.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"autocomplete", autocomplete_script.lower())
+
+        status, detail_script = self.request("GET", "/listing-detail.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"listingDetail", detail_script)
+
         status, preview_script = self.request("GET", "/card-preview.js")
         self.assertEqual(status, 200)
         self.assertIn(b"ManaPonteCardPreview", preview_script)
