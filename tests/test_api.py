@@ -347,6 +347,48 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertEqual(payload["error"], "Anúncio não encontrado")
 
+    def test_public_user_profile_exposes_only_public_data_and_listings(self):
+        """Perfil público não vaza e-mail, hash ou dados de sessão."""
+
+        status, data = self.request("GET", "/api/users/2")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["user"]["display_name"], "Marina Lima")
+        self.assertEqual(data["user"]["city"], "Fortaleza")
+        self.assertNotIn("email", data["user"])
+        self.assertNotIn("password_hash", data["user"])
+        self.assertNotIn("email_verified", data["user"])
+        self.assertTrue(data["listings"])
+        self.assertTrue(
+            all(item["user_id"] == 2 for item in data["listings"])
+        )
+
+        status, data = self.request("GET", "/api/users/999999")
+        self.assertEqual(status, 404)
+        self.assertEqual(data["error"], "Usuário não encontrado")
+
+    def test_matches_identify_the_other_player_for_profile_navigation(self):
+        """Cada match informa o jogador que publicou a oferta."""
+
+        self.login_demo()
+        status, data = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertTrue(data["matches"])
+
+        match = data["matches"][0]
+        self.assertIn("user_id", match)
+        self.assertIn("username", match)
+        self.assertNotEqual(match["user_id"], 1)
+
+        status, profile = self.request(
+            "GET",
+            f"/api/users/{match['user_id']}",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            profile["user"]["display_name"],
+            match["display_name"],
+        )
+
     def test_listing_mode_filter_includes_both_mode(self):
         """Venda/troca incluem anúncios marcados como ambos."""
 
