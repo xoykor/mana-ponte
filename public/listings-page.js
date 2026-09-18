@@ -80,6 +80,48 @@
     };
   }
 
+  function applyFiltersFromUrl() {
+    const params = new URLSearchParams(location.search);
+
+    $("#listingSearch").value = params.get("card") || "";
+    $("#listingCity").value = params.get("city") || "";
+
+    const set = params.get("set") || "";
+    if ([...$("#listingSet").options].some(option => option.value === set)) {
+      $("#listingSet").value = set;
+    }
+
+    const state = String(params.get("state") || "").toUpperCase();
+    if (STATES.includes(state)) {
+      $("#listingState").value = state;
+    }
+
+    const requestedMode = params.get("mode") || "";
+    if (["", "venda", "troca", "ambos"].includes(requestedMode)) {
+      $("#listingMode").value = requestedMode;
+    }
+  }
+
+  function syncUrlWithFilters() {
+    const query = new URLSearchParams();
+    Object.entries(currentFilters()).forEach(([key, value]) => {
+      if (value) {
+        query.set(key, value);
+      }
+    });
+
+    if (new URLSearchParams(location.search).has("static")) {
+      query.set("static", "1");
+    }
+
+    const suffix = query.toString();
+    history.replaceState(
+      null,
+      "",
+      suffix ? `anuncios.html?${suffix}` : "anuncios.html",
+    );
+  }
+
   function render(entries, meta = {}) {
     const items = Array.isArray(entries) ? entries : [];
     total = Number(meta.total ?? items.length);
@@ -197,11 +239,15 @@
       populateSets(sets.sets || []);
     }
 
+    // Os parâmetros vindos da home só são aplicados depois que UF e coleções
+    // já existem nos selects.
+    applyFiltersFromUrl();
     await load(1);
   }
 
   $("#listingFilters").addEventListener("submit", event => {
     event.preventDefault();
+    syncUrlWithFilters();
     load(1);
   });
 
