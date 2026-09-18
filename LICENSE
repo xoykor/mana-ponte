@@ -1,4 +1,4 @@
-ManaPonte Proprietary License
+ManaPonte Proprietary Source-Available License
 
 Copyright (c) 2026 xoykor
 All Rights Reserved.
@@ -12,46 +12,72 @@ and other applicable laws and remain the exclusive property of their
 respective ManaPonte copyright holder(s), except where expressly identified
 as third-party material.
 
-2. No License Granted
+2. Public Source Access
 
-Except where the copyright holder gives prior express written permission,
-no license or permission is granted to any person or entity to:
+The ManaPonte source code may be made publicly accessible for inspection,
+transparency, issue reporting, and contribution through its official source
+repository.
 
-- reproduce or copy the Software or any substantial part of it;
-- distribute, publish, republish, transmit, upload, mirror, sublicense,
-  sell, rent, lease, lend, or otherwise make the Software available;
-- modify, adapt, translate, port, reverse engineer, or create derivative
-  works based on the Software;
-- host, deploy, operate, or provide the Software or a modified version of it
-  for the benefit of third parties;
+Public availability does not make ManaPonte open source and does not grant a
+general license to use, copy, modify, redistribute, republish, deploy, host,
+commercialize, sublicense, or create derivative works from the Software.
+
+When the official repository is hosted publicly on GitHub, users receive only
+the rights necessarily granted to them by the GitHub Terms of Service and
+GitHub functionality, including viewing the repository and reproducing it
+within the GitHub service through permitted forks.
+
+A GitHub fork or other platform-provided copy does not grant any additional
+right to operate, modify, redistribute, republish, sublicense, commercialize,
+or otherwise exploit the Software outside the rights necessarily provided by
+the applicable platform terms.
+
+All rights not expressly required by the hosting platform are reserved.
+
+3. No Additional License Granted
+
+Except where the copyright holder gives prior express written permission, no
+additional license or permission is granted to any person or entity to:
+
+- reproduce or copy the Software or any substantial part of it, except as
+  necessarily permitted by the hosting platform;
+- distribute, publish, republish, transmit, upload, mirror, sublicense, sell,
+  rent, lease, lend, or otherwise make the Software available;
+- modify, adapt, translate, port, or create derivative works based on the
+  Software;
+- host, deploy, execute, operate, or provide the Software or a modified
+  version of it for personal, educational, charitable, research,
+  non-commercial, or commercial purposes;
 - incorporate the Software into another product, service, website,
   application, dataset, or repository;
-- use the Software for commercial or non-commercial purposes;
 - reproduce or redistribute the organization, selection, structure, or
   compilation of a ManaPonte database to the extent protected by applicable
   law.
 
 These restrictions apply regardless of whether the intended use is
-commercial, educational, personal, charitable, research-oriented, or
-otherwise non-commercial.
+commercial or non-commercial.
 
-3. Authorized Access and Contributions
+4. Contributions
 
-Access to the source code does not itself grant any right to reproduce,
-modify, distribute, publish, or use it.
+Public access is intended to permit inspection, discussion, issue reporting,
+and contributions to the official ManaPonte project.
 
-A person who has been expressly authorized by the copyright holder to
-contribute to ManaPonte may make only those temporary or working copies and
-modifications reasonably necessary for the authorized contribution, and only
-within the scope of that authorization.
+A contributor may create the copies and modifications reasonably necessary
+to prepare and submit a proposed contribution to the official ManaPonte
+repository, including through GitHub's normal fork and pull-request workflow.
 
-Any broader use requires separate prior written permission from the copyright
-holder.
+That limited permission exists solely for contributing changes back to the
+official ManaPonte project. It does not authorize independent deployment,
+distribution, publication, operation, commercialization, or creation of a
+separate product based on ManaPonte.
 
-4. Third-Party Materials
+Unless a separate contributor agreement states otherwise, acceptance of a
+contribution does not change the license applicable to the ManaPonte project.
 
-This license applies only to material for which the ManaPonte copyright
-holder has the legal authority to grant or withhold rights.
+5. Third-Party Materials
+
+This license applies only to material for which the ManaPonte copyright holder
+has the legal authority to grant or withhold rights.
 
 It does not claim ownership of, and does not grant or withhold rights in,
 third-party material, including without limitation:
@@ -68,21 +94,21 @@ terms, policies, and applicable law.
 
 See THIRD_PARTY_NOTICES.md for additional information.
 
-5. Platform-Required Rights
+6. Platform-Required Rights
 
-Nothing in this license is intended to revoke or contradict rights that the
-copyright holder must grant to a hosting platform solely as necessary for that
-platform to provide its service under terms accepted by the copyright holder.
+Nothing in this license is intended to revoke, contradict, or narrow rights
+that the copyright holder has already granted to GitHub or another hosting
+platform under the platform terms accepted by the copyright holder.
 
-No additional rights are granted beyond those strictly required by the
-applicable platform terms.
+No additional rights are granted beyond those required by those terms or
+expressly granted in this license.
 
-6. Statutory Exceptions
+7. Statutory Exceptions
 
 Nothing in this license is intended to restrict rights that cannot lawfully be
 waived or prohibited under applicable law.
 
-7. No Warranty
+8. No Warranty
 
 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED
 "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
@@ -93,8 +119,9 @@ IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR
 OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
 THE USE OF OR OTHER DEALINGS IN THE SOFTWARE.
 
-8. Permissions
+9. Permissions
 
 Any permission, commercial license, redistribution authorization, hosting
-authorization, or other exception to these terms must be granted separately
-and expressly by the ManaPonte copyright holder in writing.
+authorization, deployment authorization, or other exception to these terms
+must be granted separately and expressly by the ManaPonte copyright holder in
+writing.
