@@ -1,0 +1,45 @@
+ManaPonte — License Notice
+
+Copyright (c) 2026 xoykor
+
+Required Notice: Copyright (c) 2026 xoykor.
+
+Except for the third-party materials described below, the original ManaPonte
+software and project documentation are licensed under the PolyForm
+Noncommercial License 1.0.0:
+
+https://polyformproject.org/licenses/noncommercial/1.0.0/
+
+Commercial use is not granted under these terms. Any commercial use of the
+original ManaPonte software requires a separate commercial license from the
+ManaPonte copyright holder.
+
+THIRD-PARTY MATERIALS
+
+This license does not apply to third-party material included, referenced,
+displayed, indexed, downloaded, cached, or otherwise used by ManaPonte.
+
+Excluded material includes, without limitation:
+
+- Magic: The Gathering card images and artwork;
+- card frames, symbols, logos, trademarks, names, and other brand material;
+- card text and other content owned by Wizards of the Coast or other rightsholders;
+- images, metadata, or other material obtained through Scryfall or other
+  third-party services, except to the extent that ManaPonte itself owns rights
+  in a particular element;
+- user-supplied material for which ManaPonte does not own the copyright.
+
+No copyright, trademark, database, publicity, or other intellectual-property
+rights in those third-party materials are granted by this license.
+
+The presence of third-party material in a ManaPonte repository, database,
+cache, distribution, or deployment does not mean that ManaPonte owns that
+material or has authority to relicense it.
+
+For additional information, see THIRD_PARTY_NOTICES.md.
+
+NO WARRANTY
+
+To the extent permitted by applicable law, ManaPonte is provided without
+warranty. The warranty and liability provisions of the PolyForm Noncommercial
+License 1.0.0 apply to the original ManaPonte software covered by that license.
