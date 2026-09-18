@@ -94,6 +94,30 @@
     return raw.startsWith("+") ? `tel:+${digits}` : `tel:${digits}`;
   }
 
+  function whatsappHref(value, message = "") {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+
+    let digits = raw.replace(/\D/g, "");
+    // Perfis brasileiros normalmente informam DDD + número. O WhatsApp exige
+    // DDI, então acrescentamos 55 quando não foi informado.
+    if (!raw.startsWith("+") && [10, 11].includes(digits.length)) {
+      digits = `55${digits}`;
+    }
+
+    const text = String(message || "").trim();
+    return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+  }
+
+  function assetUrl(path) {
+    const value = String(path || "");
+    return API_BASE && value.startsWith("/uploads/")
+      ? `${API_BASE}${value}`
+      : value;
+  }
+
   global.ManaPontePage = {
     API_BASE,
     STATIC_MODE,
@@ -103,5 +127,7 @@
     money,
     formatPhone,
     phoneHref,
+    whatsappHref,
+    assetUrl,
   };
 }(window));
