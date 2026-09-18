@@ -74,9 +74,13 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/auth/logout` | Revoga a sessão; exige CSRF |
 | GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo; retorna `cards`, `page`, `limit`, `total` e `source` |
 | GET | `/api/sets` | Coleções e contagem de impressões |
-| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&page=&limit=` | Ofertas filtradas e paginadas; retorna `listings`, `page`, `limit` e `total` |
+| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&page=&limit=` | Ofertas filtradas e paginadas; `venda` e `troca` também incluem anúncios `ambos` |
 | POST | `/api/listings` | Cria uma oferta validada |
-| GET | `/api/matches?card_id=` | Ofertas compatíveis para uma impressão |
+| GET | `/api/wants?page=&limit=` | Lista os desejos do usuário autenticado |
+| POST | `/api/wants` | Cria ou atualiza um desejo; exige sessão e CSRF |
+| DELETE | `/api/wants/{id}` | Remove um desejo do próprio usuário; exige sessão e CSRF |
+| GET | `/api/matches?card_id=` | Busca ofertas da impressão ou de reimpressões com o mesmo `oracle_id` |
+| GET | `/api/matches` | Cruza os desejos do usuário autenticado com ofertas compatíveis |
 
 Exemplo de criação:
 
