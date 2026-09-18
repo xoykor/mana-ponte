@@ -81,7 +81,7 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo; retorna `cards`, `page`, `limit`, `total` e `source` |
 | GET | `/api/sets` | Coleções e contagem de impressões |
 | GET | `/api/listings?card=&card_id=&set=&lang=&city=&state=&mode=&condition=&min_price=&max_price=&sort=&mine=&page=&limit=` | Ofertas filtradas/paginadas; suporta faixa de preço, condição e ordenação (`recent`, `oldest`, `price_asc`, `price_desc`) |
-| GET | `/api/listings/{id}` | Detalhe público do anúncio, vendedor e fotos reais |
+| GET | `/api/listings/{id}` | Detalhe público do anúncio, impressão e vendedor |
 | POST | `/api/listings` | Cria uma oferta validada |
 | PATCH | `/api/listings/{id}` | Edita um anúncio do próprio usuário; exige sessão e CSRF |
 | DELETE | `/api/listings/{id}` | Remove um anúncio do próprio usuário; exige sessão e CSRF |
