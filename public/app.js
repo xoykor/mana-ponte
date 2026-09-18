@@ -253,6 +253,7 @@ function filters() {
   return {
     card: $("#search").value.trim(),
     set: $("#set").value,
+    lang: $("#language").value,
     city: $("#city").value.trim(),
     state: $("#state").value,
     mode,
@@ -304,6 +305,8 @@ async function loadListings({ page = 1 } = {}) {
         (!selected.card ||
           String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
         (!selected.set || item.set_code === selected.set) &&
+        (!selected.lang ||
+          String(item.language || "").toLowerCase() === selected.lang.toLowerCase()) &&
         (!selected.city ||
           String(item.city || "").toLocaleLowerCase() ===
             selected.city.toLocaleLowerCase()) &&
