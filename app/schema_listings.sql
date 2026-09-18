@@ -50,4 +50,3 @@ CREATE INDEX IF NOT EXISTS idx_listings_mode
 -- Índice usado quando desejos forem cruzados com ofertas no futuro.
 CREATE INDEX IF NOT EXISTS idx_wants_card
     ON wants(card_id);
-
