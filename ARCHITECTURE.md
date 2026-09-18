@@ -64,8 +64,7 @@ consulta enquanto ela está em voo.
 `GET /api/listings` usa os mesmos campos de paginação e conta o total depois
 dos filtros. A ordenação por `created_at DESC, id DESC` mantém páginas
 repetíveis enquanto os dados não mudam. Cada anúncio devolve título,
-descrição, idioma, preço e `contact_url`; a URL de contato só pode ser vazia
-ou usar HTTP(S) com host válido, com limite de 300 caracteres. `mine=1`
+descrição, idioma e preço. O campo legado `contact_url` continua no contrato por compatibilidade, mas a interface usa o perfil público do jogador como ponto de contato. `mine=1`
 restringe a consulta ao usuário autenticado. Filtros de venda/troca incluem
 anúncios marcados como `ambos`.
 
@@ -86,7 +85,7 @@ respostas que chegaram depois de uma busca mais nova. No GitHub Pages ou com
 `?static`, a página usa os JSONs versionados e guarda novas ofertas somente no
 `localStorage`; esse modo não tem cadastro, sessão nem persistência
 compartilhada. A renderização escapa campos de catálogo e anúncios e só cria
-links de contato depois de validar HTTP(S). Se `public/config.js` definir
+perfis públicos sem expor e-mail ou credenciais. O seletor de cartas permite ampliar a arte antes de confirmar a impressão. Se `public/config.js` definir
 `MANAPONTE_API_BASE`, o mesmo frontend do Pages usa a API externa com
 credenciais. O backend só libera CORS para origens configuradas por
 `MANAPONTE_ALLOWED_ORIGIN`; sessões entre domínios usam
