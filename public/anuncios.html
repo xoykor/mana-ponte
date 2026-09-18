@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Todos os anúncios de compra, venda e troca do ManaPonte."
+    >
+    <title>Anúncios — ManaPonte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="auth.css">
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
+      <nav>
+        <a href="anuncios.html" aria-current="page">Anúncios</a>
+        <a href="index.html#como">Como funciona</a>
+      </nav>
+      <div class="auth-actions">
+        <a class="secondary compact" href="index.html">Início</a>
+      </div>
+    </header>
+
+    <main class="standalone-page">
+      <section class="section standalone-head">
+        <p class="eyebrow">Marketplace</p>
+        <h1>Todos os anúncios</h1>
+        <p class="lead">
+          Filtre por carta, coleção, cidade, estado ou modalidade e abra o
+          perfil do anunciante para entrar em contato.
+        </p>
+
+        <form id="listingFilters" class="search standalone-filters">
+          <label>
+            <span>Carta</span>
+            <input id="listingSearch" placeholder="Ex.: Sol Ring" autocomplete="off">
+          </label>
+
+          <label>
+            <span>Coleção</span>
+            <select id="listingSet">
+              <option value="">Todas</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Cidade</span>
+            <input id="listingCity" placeholder="Ex.: Natal" autocomplete="address-level2">
+          </label>
+
+          <label>
+            <span>UF</span>
+            <select id="listingState">
+              <option value="">Brasil</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Modalidade</span>
+            <select id="listingMode">
+              <option value="">Todas</option>
+              <option value="venda">Venda</option>
+              <option value="troca">Troca</option>
+              <option value="ambos">Venda ou troca</option>
+            </select>
+          </label>
+
+          <button class="button" type="submit">Filtrar anúncios</button>
+        </form>
+      </section>
+
+      <section class="section standalone-results">
+        <p id="listingPageStatus" class="status">Carregando anúncios…</p>
+        <div id="listingPageGrid" class="grid"></div>
+
+        <div
+          id="listingPagePagination"
+          class="listing-pagination"
+          aria-label="Paginação dos anúncios"
+          hidden
+        >
+          <button class="secondary compact" id="listingPrev" type="button">
+            Anterior
+          </button>
+          <span id="listingPageNumber" class="meta">Página 1 de 1</span>
+          <button class="secondary compact" id="listingNext" type="button">
+            Próxima
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <strong>ManaPonte</strong>
+      <span>Anúncios da comunidade</span>
+      <span>Dados e imagens: Scryfall</span>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="page-common.js"></script>
+    <script src="card-preview.js"></script>
+    <script src="listings-page.js"></script>
+  </body>
+</html>
