@@ -31,6 +31,10 @@ jobs:
         run: |
           node --check public/app.js
           node --check public/card-picker.js
+          node --check public/card-preview.js
+          node --check public/page-common.js
+          node --check public/listings-page.js
+          node --check public/profile-page.js
           node --check public/config.js
 
       - name: Executar suíte offline

@@ -10,7 +10,9 @@ URL prevista quando Pages estiver habilitado:
 
 O frontend em `public/` está pronto para GitHub Pages. No estado atual do repositório, o próprio GitHub informou que o site Pages ainda não foi habilitado; por isso o workflow detecta essa situação e encerra sem tratar a ausência de Pages como falha. Para publicar, habilite **Settings → Pages → Build and deployment → Source: GitHub Actions** e execute novamente o workflow `Publicar no GitHub Pages`.
 
-Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real. Matches e anúncios do backend abrem o perfil público do jogador. No seletor de cartas, clicar na miniatura amplia a arte e clicar no nome seleciona a impressão.
+Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real.
+
+A interface agora possui páginas próprias: `anuncios.html` concentra a busca completa de anúncios e `perfil.html?user=<id>` representa o perfil público compartilhável de cada jogador. O celular é opcional; quando informado pelo próprio usuário, fica visível no perfil como link de chamada. Qualquer imagem de carta marcada pela interface pode ser ampliada; no seletor, clicar na arte amplia e clicar no nome escolhe a impressão.
 
 ## Executar
 
@@ -82,13 +84,13 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/listings` | Cria uma oferta validada |
 | PATCH | `/api/listings/{id}` | Edita um anúncio do próprio usuário; exige sessão e CSRF |
 | DELETE | `/api/listings/{id}` | Remove um anúncio do próprio usuário; exige sessão e CSRF |
-| PATCH | `/api/profile` | Atualiza nome de exibição, cidade e UF do usuário autenticado |
+| PATCH | `/api/profile` | Atualiza nome de exibição, celular opcional, cidade e UF do usuário autenticado |
 | GET | `/api/wants?page=&limit=` | Lista os desejos do usuário autenticado |
 | POST | `/api/wants` | Cria ou atualiza um desejo; exige sessão e CSRF |
 | DELETE | `/api/wants/{id}` | Remove um desejo do próprio usuário; exige sessão e CSRF |
 | GET | `/api/matches?card_id=` | Busca ofertas da impressão ou de reimpressões com o mesmo `oracle_id` |
 | GET | `/api/matches` | Cruza os desejos do usuário autenticado com ofertas compatíveis e identifica o outro jogador |
-| GET | `/api/users/{id}` | Perfil público do jogador com nome, cidade/UF e anúncios ativos |
+| GET | `/api/users/{id}` | Perfil público com nome, usuário, celular opcional, cidade/UF e anúncios ativos |
 
 Exemplo de criação:
 
@@ -107,7 +109,7 @@ Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/m
 
 `contact_url` permanece aceito apenas para compatibilidade com dados/clientes antigos, mas não faz mais parte do fluxo de contato da interface. O contato comunitário começa pelo perfil público do outro jogador. O idioma da oferta é o idioma da impressão selecionada.
 
-Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
+Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. O celular aceita de 10 a 15 dígitos, é opcional e só é publicado quando o usuário o informa. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
 ### Frontend no GitHub Pages + API externa
 
@@ -135,7 +137,7 @@ Os caminhos dos três bancos podem ser substituídos por `MANAPONTE_CARDS_DB_PAT
 
 ```text
 app/                 domínio, autenticação, SQLite, catálogo e servidor HTTP
-public/              interface responsiva sem framework
+public/              interface responsiva sem framework (início, anúncios e perfis)
 scripts/dev.sh       seed + servidor local
 scripts/import_scryfall.py
 scripts/import_allcards.py

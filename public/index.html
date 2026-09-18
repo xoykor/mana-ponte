@@ -17,10 +17,10 @@
   <body>
     <!-- Navegação principal e ações relacionadas à conta. -->
     <header class="nav">
-      <a class="brand" href="#">Mana<span>Ponte</span></a>
+      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
 
       <nav>
-        <a href="#ofertas">Ofertas</a>
+        <a href="anuncios.html">Anúncios</a>
         <a href="#como">Como funciona</a>
       </nav>
 
@@ -342,6 +342,19 @@
               >
             </label>
 
+            <label>
+              Celular para contato
+              <input
+                name="phone"
+                type="tel"
+                maxlength="32"
+                autocomplete="tel"
+                inputmode="tel"
+                placeholder="Ex.: (84) 99999-9999"
+              >
+              <small>Opcional. Se informado, ficará visível no seu perfil público.</small>
+            </label>
+
             <div class="two">
               <label>
                 Cidade
@@ -390,10 +403,30 @@
         </div>
 
         <form id="profileForm" class="account-section">
-          <h3>Perfil</h3>
+          <div class="account-section-head">
+            <h3>Perfil</h3>
+            <a
+              id="viewMyProfile"
+              class="secondary compact"
+              href="perfil.html"
+              target="_self"
+            >Ver meu perfil</a>
+          </div>
           <label>
             Nome de exibição
             <input name="display_name" minlength="2" maxlength="80" required>
+          </label>
+          <label>
+            Celular para contato
+            <input
+              name="phone"
+              type="tel"
+              maxlength="32"
+              autocomplete="tel"
+              inputmode="tel"
+              placeholder="Ex.: (84) 99999-9999"
+            >
+            <small>Opcional. Fica visível no seu perfil público.</small>
           </label>
           <div class="two">
             <label>
@@ -433,31 +466,6 @@
         </section>
 
         <p id="accountStatus" class="status" role="status"></p>
-      </div>
-    </dialog>
-
-    <dialog id="publicProfileModal" class="wide-dialog">
-      <div class="account-shell">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">Jogador</p>
-            <h2 id="publicProfileName">Perfil</h2>
-            <p id="publicProfileLocation" class="status"></p>
-          </div>
-          <button
-            type="button"
-            class="close"
-            id="closePublicProfile"
-            aria-label="Fechar"
-          >×</button>
-        </div>
-
-        <section class="account-section">
-          <h3>Anúncios deste jogador</h3>
-          <div id="publicProfileListings" class="account-list"></div>
-        </section>
-
-        <p id="publicProfileStatus" class="status" role="status"></p>
       </div>
     </dialog>
 
@@ -520,6 +528,7 @@
 
     <!-- Configuração runtime carrega antes da aplicação. -->
     <script src="config.js"></script>
+    <script src="card-preview.js" defer></script>
     <!-- O seletor precisa carregar antes do script que o inicializa. -->
     <script src="card-picker.js" defer></script>
     <script src="app.js" defer></script>

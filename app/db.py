@@ -208,6 +208,7 @@ def _migrate_auth(connection: sqlite3.Connection) -> None:
         "password_hash": "TEXT",
         "email_verified": "INTEGER NOT NULL DEFAULT 0 CHECK(email_verified IN (0,1))",
         "updated_at": "TEXT",
+        "phone": "TEXT",
     }
 
     for column_name, declaration in user_additions.items():
@@ -262,6 +263,7 @@ def _migrate_auth(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 
         INSERT OR IGNORE INTO schema_version(version) VALUES (2);
+        INSERT OR IGNORE INTO schema_version(version) VALUES (3);
         """
     )
 

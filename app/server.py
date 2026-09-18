@@ -302,6 +302,31 @@ def positive_int(value, default: int, maximum: int) -> int:
         return default
 
 
+def normalize_public_phone(value: object) -> str | None:
+    """Normaliza celular opcional para um formato seguro de contato público."""
+
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+    if len(raw) > 32:
+        raise ValueError("Celular inválido")
+
+    # Aceita a pontuação usual de telefone, mas persiste somente dígitos e,
+    # quando informado, o sinal de código internacional.
+    allowed = set("0123456789+()- .")
+    if any(character not in allowed for character in raw):
+        raise ValueError("Celular inválido")
+
+    digits = "".join(character for character in raw if character.isdigit())
+    if not 10 <= len(digits) <= 15:
+        raise ValueError("Celular deve ter entre 10 e 15 dígitos")
+
+    return f"+{digits}" if raw.startswith("+") else digits
+
+
 def valid_contact_url(value: object) -> bool:
     """Informa se o contato é vazio ou uma URL HTTP(S) com host válido."""
 
@@ -671,6 +696,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 "username": session["username"],
                 "email": session["email"],
                 "display_name": session["display_name"],
+                "phone": session.get("phone"),
                 "city": session["city"],
                 "state": session["state"],
                 "email_verified": bool(session["email_verified"]),
@@ -694,6 +720,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         email = normalize_email(data.get("email", ""))
         password = data.get("password", "")
         display_name = str(data.get("display_name", "")).strip()
+        phone = normalize_public_phone(data.get("phone"))
         city = str(data.get("city", "")).strip()
         state = str(data.get("state", "")).strip().upper()
 
@@ -724,17 +751,19 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         username,
                         email,
                         display_name,
+                        phone,
                         city,
                         state,
                         password_hash,
                         email_verified,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
                     """,
                     (
                         username,
                         email,
                         display_name,
+                        phone,
                         city,
                         state,
                         hash_password(password),
@@ -840,6 +869,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         display_name = str(
             data.get("display_name", session["display_name"])
         ).strip()
+        phone = normalize_public_phone(data.get("phone", session.get("phone")))
         city = str(data.get("city", session["city"])).strip()
         state = str(data.get("state", session["state"])).strip().upper()
 
@@ -855,10 +885,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             connection.execute(
                 """
                 UPDATE users
-                SET display_name = ?, city = ?, state = ?, updated_at = CURRENT_TIMESTAMP
+                SET display_name = ?, phone = ?, city = ?, state = ?,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                (display_name, city, state, session["user_id"]),
+                (display_name, phone, city, state, session["user_id"]),
             )
             connection.commit()
         finally:
@@ -1088,7 +1119,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         try:
             user = connection.execute(
                 f"""
-                SELECT id, username, display_name, city, state
+                SELECT id, username, display_name, phone, city, state
                 FROM {users_table}
                 WHERE id = ?
                 """,

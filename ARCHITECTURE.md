@@ -40,7 +40,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 ## Modelo de dados
 
 - `cards` (`data/cards.db`): uma linha por impressão (`scryfall_id`). `oracle_id` permite agrupar reimpressões da mesma carta; coleção, número, idioma e arte distinguem o exemplar anunciado.
-- `users` e `sessions` (`data/accounts.db`): identidade, localização, hash de senha, estado de verificação e sessões cujo token bruto nunca é persistido.
+- `users` e `sessions` (`data/accounts.db`): identidade, localização, celular público opcional, hash de senha, estado de verificação e sessões cujo token bruto nunca é persistido.
 - `listings` e `wants` (`data/listings.db`): o que um usuário possui ou procura, com condição, idioma, modalidade e preço opcional.
 - `schema_version`: base para migrações incrementais em cada arquivo. Como SQLite não aplica chaves estrangeiras entre arquivos anexados, a API valida a existência da carta e a sessão valida a existência do usuário antes de gravar ofertas.
 
@@ -79,13 +79,20 @@ anúncios marcados como `ambos`.
 
 ### Interface pública
 
-No servidor Python, `public/app.js` consulta as rotas da API. O seletor de
-impressões envia `q`, `page` e `limit`, cancela consultas anteriores e ignora
-respostas que chegaram depois de uma busca mais nova. No GitHub Pages ou com
+No servidor Python, a interface usa `index.html` como entrada,
+`anuncios.html` como catálogo dedicado de ofertas e
+`perfil.html?user=<id>` como página pública compartilhável do jogador.
+`public/app.js` coordena a tela inicial, enquanto scripts menores atendem as
+páginas independentes. O seletor de impressões envia `q`, `page` e `limit`,
+cancela consultas anteriores e ignora respostas que chegaram depois de uma
+busca mais nova. No GitHub Pages ou com
 `?static`, a página usa os JSONs versionados e guarda novas ofertas somente no
 `localStorage`; esse modo não tem cadastro, sessão nem persistência
 compartilhada. A renderização escapa campos de catálogo e anúncios e só cria
-perfis públicos sem expor e-mail ou credenciais. O seletor de cartas permite ampliar a arte antes de confirmar a impressão. Se `public/config.js` definir
+perfis públicos sem expor e-mail ou credenciais. O celular só aparece quando
+foi informado pelo próprio usuário. O componente `card-preview.js` permite
+ampliar toda arte de carta renderizada pela interface, inclusive anúncios,
+desejos, matches, perfis e resultados do seletor. Se `public/config.js` definir
 `MANAPONTE_API_BASE`, o mesmo frontend do Pages usa a API externa com
 credenciais. O backend só libera CORS para origens configuradas por
 `MANAPONTE_ALLOWED_ORIGIN`; sessões entre domínios usam
@@ -107,7 +114,7 @@ reimpressões da mesma carta. Todas as consultas usam parâmetros.
 3. Cadastro ou login gera token opaco e CSRF independentes. O token bruto existe somente no cookie `HttpOnly`; o banco guarda seu SHA-256.
 4. `/api/auth/me` recupera identidade e CSRF. Logout e comandos mutáveis exigem o cabeçalho CSRF.
 5. Cinco falhas de login por IP e identificador em 15 minutos bloqueiam novas tentativas naquela instância.
-6. A migração v2 adiciona campos sem remover contas existentes; uma estrutura de sessão antiga é revogada por ser efêmera. Bases antigas de arquivo único continuam aceitas quando um caminho explícito é fornecido.
+6. A migração v2 moderniza autenticação e sessões; a v3 adiciona o celular opcional sem remover contas existentes. Uma estrutura de sessão antiga pode ser revogada por ser efêmera. Bases antigas de arquivo único continuam aceitas quando um caminho explícito é fornecido.
 
 ## Segurança e produção
 
@@ -116,7 +123,7 @@ O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSi
 1. HTTPS com cookie `Secure`, gestão externa de segredos e proxy reverso robusto;
 2. recuperação de senha, verificação de e-mail, MFA opcional e política contra senhas vazadas;
 3. logs persistentes, auditoria e trilha de moderação;
-4. privacidade de contatos e localização menos granular por padrão;
+4. controles adicionais de privacidade para celular/localização, além da opção atual de deixar o celular vazio;
 5. denúncias, reputação e regras contra fraude;
 6. PostgreSQL, migrações formais e rate limiting compartilhado (Redis ou equivalente);
 7. jobs agendados e observáveis para sincronização incremental do Scryfall;

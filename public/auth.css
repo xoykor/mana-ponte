@@ -12,6 +12,7 @@
   border-radius: 12px;
   color: var(--ink);
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -178,6 +179,7 @@ dialog.wide-dialog {
   color: var(--ink);
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 

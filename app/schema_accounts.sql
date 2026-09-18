@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     display_name TEXT NOT NULL,
+    phone TEXT,
     city TEXT NOT NULL,
     state TEXT NOT NULL CHECK(length(state) = 2),
     password_hash TEXT,
