@@ -35,7 +35,14 @@
         <form id="listingFilters" class="search standalone-filters">
           <label>
             <span>Carta</span>
-            <input id="listingSearch" placeholder="Ex.: Sol Ring" autocomplete="off">
+            <input
+              id="listingSearch"
+              data-card-autocomplete
+              list="listingCardSuggestions"
+              placeholder="Ex.: Sol Ring"
+              autocomplete="off"
+            >
+            <datalist id="listingCardSuggestions"></datalist>
           </label>
 
           <label>
@@ -92,7 +99,42 @@
             </select>
           </label>
 
-          <button class="button" type="submit">Filtrar anúncios</button>
+          <label>
+            <span>Condição</span>
+            <select id="listingCondition">
+              <option value="">Qualquer</option>
+              <option value="NM">NM</option>
+              <option value="SP">SP</option>
+              <option value="MP">MP</option>
+              <option value="HP">HP</option>
+              <option value="DMG">DMG</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Preço mínimo (R$)</span>
+            <input id="listingMinPrice" type="number" min="0" step="0.01" placeholder="0,00">
+          </label>
+
+          <label>
+            <span>Preço máximo (R$)</span>
+            <input id="listingMaxPrice" type="number" min="0" step="0.01" placeholder="Sem limite">
+          </label>
+
+          <label>
+            <span>Ordenar</span>
+            <select id="listingSort">
+              <option value="recent">Mais recentes</option>
+              <option value="price_asc">Menor preço</option>
+              <option value="price_desc">Maior preço</option>
+              <option value="oldest">Mais antigos</option>
+            </select>
+          </label>
+
+          <div class="filter-actions">
+            <button class="button" type="submit">Filtrar anúncios</button>
+            <button class="secondary" id="listingClear" type="button">Limpar filtros</button>
+          </div>
         </form>
       </section>
 
@@ -126,6 +168,7 @@
     <script src="config.js"></script>
     <script src="page-common.js"></script>
     <script src="card-preview.js"></script>
+    <script src="card-autocomplete.js"></script>
     <script src="listings-page.js"></script>
   </body>
 </html>

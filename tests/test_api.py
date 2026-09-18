@@ -1,5 +1,6 @@
 """Testes de integração da API HTTP do ManaPonte."""
 
+import base64
 import http.client
 import json
 import tempfile
@@ -705,6 +706,18 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Perfil", profile_page)
 
+        status, listing_page = self.request("GET", "/anuncio.html?id=2")
+        self.assertEqual(status, 200)
+        self.assertIn(b"An", listing_page)
+
+        status, autocomplete_script = self.request("GET", "/card-autocomplete.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"autocomplete", autocomplete_script.lower())
+
+        status, detail_script = self.request("GET", "/listing-detail.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"listingDetail", detail_script)
+
         status, preview_script = self.request("GET", "/card-preview.js")
         self.assertEqual(status, 200)
         self.assertIn(b"ManaPonteCardPreview", preview_script)
@@ -791,3 +804,229 @@ class ApiTest(unittest.TestCase):
                 {"cmm", "tst"},
             )
             remote.assert_called_once_with("Sol Ring", "", "")
+
+    def test_listing_detail_photos_and_uploaded_file_serving(self):
+        """Anúncio individual expõe e serve até quatro fotos reais."""
+
+        self.login_demo()
+        status, created = self.request(
+            "POST",
+            "/api/listings",
+            {
+                "card_id": 3,
+                "title": "Bolt fotografado",
+                "condition": "SP",
+                "mode": "venda",
+                "price_cents": 1500,
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+        listing_id = created["id"]
+
+        # O backend valida assinatura e Base64; um payload mínimo basta para
+        # exercitar persistência/serviço sem depender de bibliotecas de imagem.
+        fake_png = b"\x89PNG\r\n\x1a\n" + b"manaponte-photo"
+        photo = (
+            "data:image/png;base64,"
+            + base64.b64encode(fake_png).decode("ascii")
+        )
+
+        try:
+            status, uploaded = self.request(
+                "POST",
+                f"/api/listings/{listing_id}/photos",
+                {"photos": [photo]},
+                csrf=self.csrf,
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(len(uploaded["photos"]), 1)
+
+            status, detail = self.request(
+                "GET",
+                f"/api/listings/{listing_id}",
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(detail["listing"]["id"], listing_id)
+            self.assertEqual(detail["listing"]["username"], "danton")
+            self.assertEqual(len(detail["photos"]), 1)
+
+            photo_url = detail["photos"][0]["url"]
+            status, raw = self.request("GET", photo_url)
+            self.assertEqual(status, 200)
+            self.assertTrue(raw.startswith(b"\x89PNG\r\n\x1a\n"))
+
+            status, cleared = self.request(
+                "POST",
+                f"/api/listings/{listing_id}/photos",
+                {"photos": []},
+                csrf=self.csrf,
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(cleared["photos"], [])
+
+            status, detail = self.request(
+                "GET",
+                f"/api/listings/{listing_id}",
+            )
+            self.assertEqual(detail["photos"], [])
+        finally:
+            self.request(
+                "DELETE",
+                f"/api/listings/{listing_id}",
+                csrf=self.csrf,
+            )
+
+    def test_advanced_listing_filters_and_sorting(self):
+        """Condição, faixa de preço e ordenação são aplicadas pela API."""
+
+        status, data = self.request(
+            "GET",
+            "/api/listings?condition=NM&min_price=5&max_price=220"
+            "&sort=price_asc&limit=100",
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(data["listings"])
+        prices = [item["price_cents"] for item in data["listings"]]
+        self.assertTrue(all(item["condition"] == "NM" for item in data["listings"]))
+        self.assertTrue(all(500 <= price <= 22000 for price in prices))
+        self.assertEqual(prices, sorted(prices))
+
+        status, invalid = self.request(
+            "GET",
+            "/api/listings?min_price=100&max_price=10",
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("mínimo", invalid["error"])
+
+    def test_wishlist_language_restricts_oracle_matches(self):
+        """Wishlist aceita reimpressões, mas respeita o idioma desejado."""
+
+        self.login_demo()
+
+        with closing(get_connection(self.db)) as conn:
+            english = conn.execute(
+                "SELECT oracle_id FROM cards WHERE id = 3"
+            ).fetchone()
+            cursor = conn.execute(
+                """
+                INSERT INTO cards(
+                    scryfall_id, oracle_id, name, set_code, set_name,
+                    collector_number, language, rarity, image_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "bolt-pt-regression",
+                    english["oracle_id"],
+                    "Lightning Bolt",
+                    "tst",
+                    "Teste PT",
+                    "99",
+                    "pt",
+                    "common",
+                    "https://example.test/bolt-pt.jpg",
+                ),
+            )
+            portuguese_card_id = cursor.lastrowid
+            listing = conn.execute(
+                """
+                INSERT INTO listings(
+                    card_id, user_id, title, description, price_cents,
+                    condition, language, mode
+                ) VALUES (?, 2, ?, '', 1300, 'NM', 'pt', 'venda')
+                """,
+                (portuguese_card_id, "Bolt português"),
+            )
+            portuguese_listing_id = listing.lastrowid
+            conn.commit()
+
+        want_id = None
+        try:
+            status, created = self.request(
+                "POST",
+                "/api/wants",
+                {
+                    "card_id": 3,
+                    "desired_condition": "SP",
+                    "desired_language": "pt",
+                    "mode": "compra",
+                },
+                csrf=self.csrf,
+            )
+            self.assertEqual(status, 201)
+            want_id = created["id"]
+
+            status, matches = self.request("GET", "/api/matches")
+            self.assertEqual(status, 200)
+            own_matches = [
+                item for item in matches["matches"]
+                if item["want_id"] == want_id
+            ]
+            self.assertTrue(own_matches)
+            self.assertTrue(
+                all(item["language"].lower() == "pt" for item in own_matches)
+            )
+            self.assertIn(
+                portuguese_listing_id,
+                {item["listing_id"] for item in own_matches},
+            )
+
+            status, _ = self.request(
+                "POST",
+                "/api/wants",
+                {
+                    "card_id": 3,
+                    "desired_condition": "SP",
+                    "desired_language": "en",
+                    "mode": "compra",
+                },
+                csrf=self.csrf,
+            )
+            self.assertEqual(status, 201)
+
+            status, matches = self.request("GET", "/api/matches")
+            own_matches = [
+                item for item in matches["matches"]
+                if item["want_id"] == want_id
+            ]
+            self.assertTrue(own_matches)
+            self.assertTrue(
+                all(item["language"].lower() == "en" for item in own_matches)
+            )
+        finally:
+            if want_id is not None:
+                self.request(
+                    "DELETE",
+                    f"/api/wants/{want_id}",
+                    csrf=self.csrf,
+                )
+            with closing(get_connection(self.db)) as conn:
+                conn.execute(
+                    "DELETE FROM listings WHERE id = ?",
+                    (portuguese_listing_id,),
+                )
+                conn.execute(
+                    "DELETE FROM cards WHERE id = ?",
+                    (portuguese_card_id,),
+                )
+                conn.commit()
+
+    def test_public_profile_contains_stats_join_date_and_wants(self):
+        """Perfil público traz data de entrada, contagens e wishlist pública."""
+
+        status, profile = self.request("GET", "/api/users/1")
+        self.assertEqual(status, 200)
+        self.assertIn("created_at", profile["user"])
+        self.assertGreaterEqual(profile["stats"]["listing_count"], 1)
+        self.assertGreaterEqual(profile["stats"]["want_count"], 1)
+        self.assertEqual(
+            profile["stats"]["listing_count"],
+            len(profile["listings"]),
+        )
+        self.assertEqual(
+            profile["stats"]["want_count"],
+            len(profile["wants"]),
+        )
+        self.assertTrue(
+            any(item["name"] == "Rhystic Study" for item in profile["wants"])
+        )

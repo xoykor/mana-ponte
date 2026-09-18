@@ -268,6 +268,39 @@ def _migrate_auth(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_listings(connection: sqlite3.Connection) -> None:
+    """Adiciona preferências de idioma e fotos sem apagar anúncios existentes."""
+
+    want_columns = _columns(connection, "wants")
+    if "desired_language" not in want_columns:
+        connection.execute("ALTER TABLE wants ADD COLUMN desired_language TEXT")
+
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS listing_photos (
+            id INTEGER PRIMARY KEY,
+            listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+            path TEXT NOT NULL,
+            position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 3),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(listing_id, position)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_listing_photos_listing
+            ON listing_photos(listing_id, position);
+
+        INSERT OR IGNORE INTO schema_version(version) VALUES (4);
+        """
+    )
+
+
+def _migrate_legacy(connection: sqlite3.Connection) -> None:
+    """Aplica no arquivo único as migrações de contas e marketplace."""
+
+    _migrate_auth(connection)
+    _migrate_listings(connection)
+
+
 def _init_with_schema(path: Path, schema_path: Path, migrations=None) -> Path:
     """Executa o schema do banco e migrações pendentes de forma idempotente."""
 
@@ -307,7 +340,11 @@ def init_accounts_db(db_path: str | Path | None = None) -> Path:
 def init_listings_db(db_path: str | Path | None = None) -> Path:
     """Cria o schema do banco de anúncios."""
 
-    return _init_with_schema(resolve_listings_db_path(db_path), LISTINGS_SCHEMA_PATH)
+    return _init_with_schema(
+        resolve_listings_db_path(db_path),
+        LISTINGS_SCHEMA_PATH,
+        _migrate_listings,
+    )
 
 
 def resolve_db_paths(
@@ -338,11 +375,11 @@ def init_db(
         return _init_with_schema(
             resolve_db_path(db_paths),
             SCHEMA_PATH,
-            _migrate_auth,
+            _migrate_legacy,
         )
 
     if db_paths is None and (legacy_path := legacy_env_db_path()) is not None:
-        return _init_with_schema(legacy_path, SCHEMA_PATH, _migrate_auth)
+        return _init_with_schema(legacy_path, SCHEMA_PATH, _migrate_legacy)
 
     paths = resolve_db_paths(db_paths)
     init_cards_db(paths["cards"])

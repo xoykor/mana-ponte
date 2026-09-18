@@ -35,6 +35,8 @@ jobs:
           node --check public/page-common.js
           node --check public/listings-page.js
           node --check public/profile-page.js
+          node --check public/card-autocomplete.js
+          node --check public/listing-detail.js
           node --check public/config.js
 
       - name: Executar suíte offline

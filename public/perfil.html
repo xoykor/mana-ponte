@@ -35,10 +35,29 @@
             <strong id="profilePageLocation">—</strong>
           </div>
           <div>
-            <span class="meta">Celular</span>
-            <a id="profilePagePhone" class="phone-link" hidden></a>
-            <span id="profilePageNoPhone" class="status">Não informado</span>
+            <span class="meta">Membro desde</span>
+            <strong id="profilePageJoined">—</strong>
           </div>
+          <div>
+            <span class="meta">Anúncios ativos</span>
+            <strong id="profilePageListingCount">0</strong>
+          </div>
+          <div>
+            <span class="meta">Cartas procuradas</span>
+            <strong id="profilePageWantCount">0</strong>
+          </div>
+        </div>
+
+        <div class="profile-contact-actions">
+          <a id="profilePagePhone" class="secondary" hidden></a>
+          <a
+            id="profilePageWhatsapp"
+            class="button"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+          >Abrir WhatsApp</a>
+          <span id="profilePageNoPhone" class="status">Celular não informado.</span>
         </div>
 
         <p id="profilePageStatus" class="status"></p>
@@ -54,6 +73,17 @@
         </div>
 
         <div id="profilePageListings" class="grid"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Lista de desejos</p>
+            <h2>Cartas que este jogador procura</h2>
+          </div>
+        </div>
+
+        <div id="profilePageWants" class="account-list public-wants"></div>
       </section>
     </main>
 
