@@ -610,9 +610,91 @@ dialog form {
 }
 
 
+
+/* ---------- Páginas independentes ---------- */
+
+[data-card-image] {
+  cursor: zoom-in;
+}
+
+[data-card-image]:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+.standalone-page {
+  min-height: calc(100vh - 152px);
+}
+
+.standalone-head {
+  padding-bottom: 24px;
+}
+
+.standalone-head h1,
+.profile-page-head h1 {
+  max-width: 850px;
+  margin-bottom: 18px;
+  font-size: clamp(42px, 7vw, 72px);
+}
+
+.standalone-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 34px;
+}
+
+.standalone-filters .button {
+  align-self: end;
+}
+
+.standalone-results {
+  padding-top: 24px;
+}
+
+.profile-page-head {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 26px;
+}
+
+.profile-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.profile-facts > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.phone-link {
+  color: var(--green);
+  font-size: 17px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.phone-link:hover,
+.phone-link:focus-visible {
+  text-decoration: underline;
+}
+
+.profile-link {
+  text-decoration: none;
+}
+
+
 /* ---------- Ajustes responsivos ---------- */
 
 @media (max-width: 900px) {
+  .standalone-filters {
+    grid-template-columns: 1fr 1fr;
+  }
   .hero {
     grid-template-columns: 1fr;
     gap: 30px;
@@ -629,6 +711,10 @@ dialog form {
 }
 
 @media (max-width: 620px) {
+  .standalone-filters,
+  .profile-facts {
+    grid-template-columns: 1fr;
+  }
   .grid,
   .steps {
     grid-template-columns: 1fr;
