@@ -78,6 +78,31 @@
             </select>
           </label>
 
+          <label>
+            <span>Idioma da impressão</span>
+            <select id="language">
+              <option value="">Todos os idiomas</option>
+              <option value="pt">Português</option>
+              <option value="en">Inglês</option>
+              <option value="es">Espanhol</option>
+              <option value="fr">Francês</option>
+              <option value="de">Alemão</option>
+              <option value="it">Italiano</option>
+              <option value="ja">Japonês</option>
+              <option value="ko">Coreano</option>
+              <option value="ru">Russo</option>
+              <option value="zhs">Chinês simplificado</option>
+              <option value="zht">Chinês tradicional</option>
+              <option value="he">Hebraico</option>
+              <option value="la">Latim</option>
+              <option value="grc">Grego antigo</option>
+              <option value="ar">Árabe</option>
+              <option value="sa">Sânscrito</option>
+              <option value="ph">Phyrexiano</option>
+              <option value="qya">Quenya</option>
+            </select>
+          </label>
+
           <button class="button">Encontrar</button>
         </form>
       </section>
@@ -188,6 +213,28 @@
             placeholder="Digite o nome da carta…"
             autocomplete="off"
           >
+          <label for="cardLanguage">Idioma da impressão</label>
+          <select id="cardLanguage" data-card-language>
+              <option value="">Todos os idiomas</option>
+              <option value="pt">Português</option>
+              <option value="en">Inglês</option>
+              <option value="es">Espanhol</option>
+              <option value="fr">Francês</option>
+              <option value="de">Alemão</option>
+              <option value="it">Italiano</option>
+              <option value="ja">Japonês</option>
+              <option value="ko">Coreano</option>
+              <option value="ru">Russo</option>
+              <option value="zhs">Chinês simplificado</option>
+              <option value="zht">Chinês tradicional</option>
+              <option value="he">Hebraico</option>
+              <option value="la">Latim</option>
+              <option value="grc">Grego antigo</option>
+              <option value="ar">Árabe</option>
+              <option value="sa">Sânscrito</option>
+              <option value="ph">Phyrexiano</option>
+              <option value="qya">Quenya</option>
+          </select>
           <input type="hidden" id="cardId" name="card_id">
           <div class="card-picker-selected" data-card-selected hidden></div>
           <div
@@ -488,6 +535,28 @@
             placeholder="Digite o nome da carta…"
             autocomplete="off"
           >
+          <label for="wantCardLanguage">Idioma da impressão</label>
+          <select id="wantCardLanguage" data-card-language>
+              <option value="">Todos os idiomas</option>
+              <option value="pt">Português</option>
+              <option value="en">Inglês</option>
+              <option value="es">Espanhol</option>
+              <option value="fr">Francês</option>
+              <option value="de">Alemão</option>
+              <option value="it">Italiano</option>
+              <option value="ja">Japonês</option>
+              <option value="ko">Coreano</option>
+              <option value="ru">Russo</option>
+              <option value="zhs">Chinês simplificado</option>
+              <option value="zht">Chinês tradicional</option>
+              <option value="he">Hebraico</option>
+              <option value="la">Latim</option>
+              <option value="grc">Grego antigo</option>
+              <option value="ar">Árabe</option>
+              <option value="sa">Sânscrito</option>
+              <option value="ph">Phyrexiano</option>
+              <option value="qya">Quenya</option>
+          </select>
           <input type="hidden" name="card_id" data-card-id>
           <div class="card-picker-selected" data-card-selected hidden></div>
           <div class="card-picker-results" data-card-results role="listbox" aria-label="Resultados da busca"></div>
