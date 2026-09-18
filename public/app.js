@@ -78,46 +78,6 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, character => ({
 }[character]));
 
 
-/**
- * Aceita somente URLs de contato com protocolo web e host não vazio.
- *
- * O backend faz a mesma validação. Repeti-la aqui impede que uma resposta
- * malformada ou um anúncio salvo por uma versão antiga vire um link perigoso
- * no navegador.
- */
-function safeContactUrl(value) {
-  const input = String(value ?? "").trim();
-
-  if (!input) {
-    return "";
-  }
-
-  if ([...input].some(character =>
-    character === "\\" ||
-    /\s/.test(character) ||
-    character.charCodeAt(0) < 0x20 ||
-    character.charCodeAt(0) === 0x7f
-  )) {
-    return null;
-  }
-
-  try {
-    const url = new URL(input);
-    if (
-      !["http:", "https:"].includes(url.protocol) ||
-      !url.hostname ||
-      url.hostname.replace(/\./g, "") === ""
-    ) {
-      return null;
-    }
-
-    return url.href;
-  } catch {
-    return null;
-  }
-}
-
-
 function cardLanguage(card) {
   return String(card?.language || card?.lang || "en").trim() || "en";
 }
@@ -235,7 +195,6 @@ function renderListings(listings, pagination = {}) {
     const name = String(item.name ?? "").trim();
     const title = String(item.title ?? "").trim();
     const description = String(item.description ?? "").trim();
-    const contact = safeContactUrl(item.contact_url);
     const heading = title || name || "Oferta";
     const cardName = title && name && title !== name
       ? `<p class="card-name">${esc(name)}</p>`
@@ -243,14 +202,12 @@ function renderListings(listings, pagination = {}) {
     const descriptionMarkup = description
       ? `<p class="description">${esc(description)}</p>`
       : "";
-    const contactMarkup = contact
-      ? `<a
-          class="contact"
-          href="${esc(contact)}"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Abrir contato"
-        >${esc(contact)}</a>`
+    const profileMarkup = !STATIC_MODE && item.user_id
+      ? `<button
+          class="secondary compact profile-link"
+          type="button"
+          data-profile-user="${item.user_id}"
+        >Ver perfil</button>`
       : "";
     const setCode = String(item.set_code ?? "").toUpperCase();
     const language = String(item.language || "en").toUpperCase();
@@ -273,11 +230,15 @@ function renderListings(listings, pagination = {}) {
             ${esc(item.city)} · ${esc(item.state)}<br>
             por ${esc(item.display_name)}
           </div>
-          ${contactMarkup}
+          ${profileMarkup}
         </div>
       </article>
     `;
   }).join("");
+
+  $("#listings").querySelectorAll("[data-profile-user]").forEach(button => {
+    button.onclick = () => openPublicProfile(Number(button.dataset.profileUser));
+  });
 }
 
 
@@ -566,6 +527,7 @@ const modal = $("#modal");
 const authModal = $("#authModal");
 const accountModal = $("#accountModal");
 const wantModal = $("#wantModal");
+const publicProfileModal = $("#publicProfileModal");
 
 
 /**
@@ -612,7 +574,6 @@ function openListingForEdit(item) {
     : (item.price_cents / 100).toFixed(2);
   form.elements.condition.value = item.condition;
   form.elements.mode.value = item.mode;
-  form.elements.contact_url.value = item.contact_url || "";
 
   accountModal.close();
   modal.showModal();
@@ -643,15 +604,6 @@ $("#listingForm").addEventListener("submit", async event => {
     return;
   }
 
-  const contactUrl = safeContactUrl(form.contact_url);
-  if (contactUrl === null) {
-    $("#formStatus").textContent =
-      "Informe um contato HTTP(S) válido com endereço de host, " +
-      "ou deixe o campo vazio.";
-    $("[name='contact_url']")?.focus();
-    return;
-  }
-
   // A API armazena preço como inteiro em centavos para evitar arredondamento
   // inesperado de números decimais no banco.
   const payload = {
@@ -664,7 +616,6 @@ $("#listingForm").addEventListener("submit", async event => {
     condition: form.condition,
     language: cardLanguage(card),
     mode: form.mode,
-    contact_url: contactUrl,
   };
 
   try {
