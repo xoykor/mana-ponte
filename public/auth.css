@@ -104,3 +104,109 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Área autenticada com perfil, anúncios, desejos e matches. */
+dialog.wide-dialog {
+  width: min(920px, calc(100% - 32px));
+}
+
+.account-shell {
+  display: grid;
+  gap: 20px;
+  max-height: min(86vh, 900px);
+  overflow: auto;
+  padding: 25px;
+}
+
+.account-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: #0f1512;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.account-section h3 {
+  margin: 0;
+}
+
+.account-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-list {
+  display: grid;
+  gap: 10px;
+}
+
+.account-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.account-item img {
+  width: 58px;
+  height: 80px;
+  object-fit: cover;
+  background: #202923;
+  border-radius: 7px;
+}
+
+.account-item h4,
+.account-item p {
+  margin: 0;
+}
+
+.account-item .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.danger {
+  border-color: #744;
+  color: #f2aaaa;
+}
+
+.empty-state {
+  margin: 0;
+  color: var(--muted);
+}
+
+@media (max-width: 620px) {
+  .account-item {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .account-item img {
+    width: 48px;
+    height: 67px;
+  }
+
+  .inline-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .account-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
