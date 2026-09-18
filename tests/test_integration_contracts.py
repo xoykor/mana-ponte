@@ -180,6 +180,18 @@ class SplitApiContractTest(unittest.TestCase):
             )
         )
 
+    def test_public_profile_crosses_accounts_cards_and_listings(self):
+        """Perfil público funciona quando os dados vivem em três bancos."""
+
+        status, profile = self.request("GET", "/api/users/2")
+        self.assertEqual(status, 200)
+        self.assertEqual(profile["user"]["username"], "marina")
+        self.assertEqual(profile["user"]["state"], "CE")
+        self.assertTrue(profile["listings"])
+        self.assertTrue(
+            all(item["user_id"] == 2 for item in profile["listings"])
+        )
+
     def test_contact_url_over_limit_is_rejected(self):
         """A API não grava uma URL válida parcialmente truncada."""
 
