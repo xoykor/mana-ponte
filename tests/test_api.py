@@ -426,6 +426,53 @@ class ApiTest(unittest.TestCase):
         status, wants = self.request("GET", "/api/wants")
         self.assertFalse(any(item["id"] == created["id"] for item in wants["wants"]))
 
+    def test_matching_respects_minimum_condition(self):
+        """Condição mínima aceita exemplares melhores, mas rejeita piores."""
+
+        self.login_demo()
+
+        # Lightning Bolt do fixture está em SP. Um desejo por NM não deve casar.
+        status, created = self.request(
+            "POST",
+            "/api/wants",
+            {
+                "card_id": 3,
+                "desired_condition": "NM",
+                "mode": "compra",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertFalse(
+            any(item["want_id"] == created["id"] for item in matches["matches"])
+        )
+
+        status, _ = self.request(
+            "POST",
+            "/api/wants",
+            {
+                "card_id": 3,
+                "desired_condition": "SP",
+                "mode": "compra",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertTrue(
+            any(item["want_id"] == created["id"] for item in matches["matches"])
+        )
+
+        self.request(
+            "DELETE",
+            f"/api/wants/{created['id']}",
+            csrf=self.csrf,
+        )
+
     def test_public_routes(self):
         """Rotas públicas respondem sem sessão e servem a página inicial."""
 
