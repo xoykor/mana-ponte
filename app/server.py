@@ -459,6 +459,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
     cards_db_path = None
     accounts_db_path = None
     listings_db_path = None
+    upload_dir = UPLOAD_DIR
 
     # Cada servidor recebe seu próprio limiter para os testes e para processos
     # diferentes não compartilharem estado acidentalmente.
@@ -1913,14 +1914,14 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 )
             ]
 
-            directory = UPLOAD_DIR / "listings" / str(listing_id)
+            directory = self.upload_dir / "listings" / str(listing_id)
             directory.mkdir(parents=True, exist_ok=True)
 
             for position, (content, extension) in enumerate(decoded):
                 filename = f"{secrets.token_hex(16)}{extension}"
                 relative = f"listings/{listing_id}/{filename}"
-                destination = (UPLOAD_DIR / relative).resolve()
-                upload_root = UPLOAD_DIR.resolve()
+                destination = (self.upload_dir / relative).resolve()
+                upload_root = self.upload_dir.resolve()
                 if upload_root not in destination.parents:
                     raise ValueError("Caminho de foto inválido")
                 destination.write_bytes(content)
@@ -1945,7 +1946,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             connection.rollback()
             for relative in written_paths:
                 try:
-                    (UPLOAD_DIR / relative).unlink(missing_ok=True)
+                    (self.upload_dir / relative).unlink(missing_ok=True)
                 except OSError:
                     pass
             raise
@@ -1957,8 +1958,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             if relative in written_paths:
                 continue
             try:
-                candidate = (UPLOAD_DIR / relative).resolve()
-                if UPLOAD_DIR.resolve() in candidate.parents:
+                candidate = (self.upload_dir / relative).resolve()
+                if self.upload_dir.resolve() in candidate.parents:
                     candidate.unlink(missing_ok=True)
             except OSError:
                 pass
@@ -2012,8 +2013,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         for relative in photo_paths:
             try:
-                candidate = (UPLOAD_DIR / relative).resolve()
-                if UPLOAD_DIR.resolve() in candidate.parents:
+                candidate = (self.upload_dir / relative).resolve()
+                if self.upload_dir.resolve() in candidate.parents:
                     candidate.unlink(missing_ok=True)
             except OSError:
                 pass
@@ -2027,8 +2028,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         if not relative:
             return self.send_error(404)
 
-        candidate = (UPLOAD_DIR / relative).resolve()
-        upload_root = UPLOAD_DIR.resolve()
+        candidate = (self.upload_dir / relative).resolve()
+        upload_root = self.upload_dir.resolve()
         if upload_root not in candidate.parents:
             return self.send_error(403)
         if not candidate.is_file():
@@ -2107,6 +2108,7 @@ def create_server(
             "cards_db_path": paths["cards"],
             "accounts_db_path": paths["accounts"],
             "listings_db_path": paths["listings"],
+            "upload_dir": paths["listings"].parent / "uploads",
         }
     else:
         legacy_path = resolve_db_path(db_path)
@@ -2117,6 +2119,7 @@ def create_server(
             "cards_db_path": None,
             "accounts_db_path": None,
             "listings_db_path": None,
+            "upload_dir": legacy_path.parent / "uploads",
         }
 
     handler_options["rate_limiter"] = LoginRateLimiter()
