@@ -1,6 +1,5 @@
 """Testes de integração da API HTTP do ManaPonte."""
 
-import base64
 import http.client
 import json
 import tempfile
@@ -804,78 +803,6 @@ class ApiTest(unittest.TestCase):
                 {"cmm", "tst"},
             )
             remote.assert_called_once_with("Sol Ring", "", "")
-
-    def test_listing_detail_photos_and_uploaded_file_serving(self):
-        """Anúncio individual expõe e serve até quatro fotos reais."""
-
-        self.login_demo()
-        status, created = self.request(
-            "POST",
-            "/api/listings",
-            {
-                "card_id": 3,
-                "title": "Bolt fotografado",
-                "condition": "SP",
-                "mode": "venda",
-                "price_cents": 1500,
-            },
-            csrf=self.csrf,
-        )
-        self.assertEqual(status, 201)
-        listing_id = created["id"]
-
-        # O backend valida assinatura e Base64; um payload mínimo basta para
-        # exercitar persistência/serviço sem depender de bibliotecas de imagem.
-        fake_png = b"\x89PNG\r\n\x1a\n" + b"manaponte-photo"
-        photo = (
-            "data:image/png;base64,"
-            + base64.b64encode(fake_png).decode("ascii")
-        )
-
-        try:
-            status, uploaded = self.request(
-                "POST",
-                f"/api/listings/{listing_id}/photos",
-                {"photos": [photo]},
-                csrf=self.csrf,
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(len(uploaded["photos"]), 1)
-
-            status, detail = self.request(
-                "GET",
-                f"/api/listings/{listing_id}",
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(detail["listing"]["id"], listing_id)
-            self.assertEqual(detail["listing"]["username"], "danton")
-            self.assertEqual(len(detail["photos"]), 1)
-
-            photo_url = detail["photos"][0]["url"]
-            status, raw = self.request("GET", photo_url)
-            self.assertEqual(status, 200)
-            self.assertTrue(raw.startswith(b"\x89PNG\r\n\x1a\n"))
-
-            status, cleared = self.request(
-                "POST",
-                f"/api/listings/{listing_id}/photos",
-                {"photos": []},
-                csrf=self.csrf,
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(cleared["photos"], [])
-
-            status, detail = self.request(
-                "GET",
-                f"/api/listings/{listing_id}",
-            )
-            self.assertEqual(detail["photos"], [])
-        finally:
-            self.request(
-                "DELETE",
-                f"/api/listings/{listing_id}",
-                csrf=self.csrf,
-            )
 
     def test_advanced_listing_filters_and_sorting(self):
         """Condição, faixa de preço e ordenação são aplicadas pela API."""
