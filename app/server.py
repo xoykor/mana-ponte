@@ -1017,6 +1017,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         filters = {
             "card_id": ("l.card_id = ?", int),
             "set": ("c.set_code = ? COLLATE NOCASE", str),
+            "lang": ("l.language = ? COLLATE NOCASE", str),
             "city": ("u.city = ? COLLATE NOCASE", str),
             "state": ("u.state = ? COLLATE NOCASE", str),
         }
