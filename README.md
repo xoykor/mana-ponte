@@ -12,7 +12,7 @@ O frontend em `public/` está pronto para GitHub Pages. No estado atual do repos
 
 Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real.
 
-A interface possui páginas próprias para busca, perfil e anúncio: `anuncios.html`, `perfil.html?user=<id>` e `anuncio.html?id=<id>`. A busca aceita idioma, condição, faixa de preço e ordenação, mantém filtros na URL e oferece autocomplete de nomes. Anúncios podem ter até quatro fotos reais do exemplar; a página individual separa essas fotos da imagem oficial do Scryfall. O celular é opcional e, quando informado, habilita telefone e WhatsApp no perfil/anúncio. Desejos podem exigir um idioma específico ou aceitar qualquer idioma, e o matching respeita essa escolha. Qualquer imagem de carta/foto do exemplar marcada pela interface pode ser ampliada.
+A interface possui páginas próprias para busca, perfil e anúncio: `anuncios.html`, `perfil.html?user=<id>` e `anuncio.html?id=<id>`. A busca aceita idioma, condição, faixa de preço e ordenação, mantém filtros na URL e oferece autocomplete de nomes. A página individual usa a imagem oficial da impressão no Scryfall, evitando armazenamento de mídia na VPS. O celular é opcional e, quando informado, habilita telefone e WhatsApp no perfil/anúncio. Desejos podem exigir um idioma específico ou aceitar qualquer idioma, e o matching respeita essa escolha. Qualquer imagem de carta marcada pela interface pode ser ampliada.
 
 ## Executar
 
@@ -57,7 +57,7 @@ simples, e decodifica os registros incrementalmente. Cartas exclusivamente
 digitais e entradas inválidas são ignoradas; o relatório final informa
 `importadas`, `ignoradas` e `invalidas`. O upsert acontece em lotes de 500 por
 `scryfall_id`, preservando o ID local usado pelos anúncios. O protótipo
-armazena URLs das imagens oficiais do catálogo, não cópias delas. Fotos reais enviadas pelos usuários ficam separadas em `data/uploads/`. O uso público/comercial deve respeitar
+armazena URLs das imagens oficiais do catálogo, não cópias delas. O uso público/comercial deve respeitar
 as políticas de dados e imagens do Scryfall e da Wizards of the Coast.
 
 Para importar outro tipo de Bulk Data, como `all_cards`, use o adaptador
@@ -83,7 +83,6 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | GET | `/api/listings?card=&card_id=&set=&lang=&city=&state=&mode=&condition=&min_price=&max_price=&sort=&mine=&page=&limit=` | Ofertas filtradas/paginadas; suporta faixa de preço, condição e ordenação (`recent`, `oldest`, `price_asc`, `price_desc`) |
 | GET | `/api/listings/{id}` | Detalhe público do anúncio, vendedor e fotos reais |
 | POST | `/api/listings` | Cria uma oferta validada |
-| POST | `/api/listings/{id}/photos` | Substitui as fotos reais do próprio anúncio; máximo de 4, exige sessão e CSRF |
 | PATCH | `/api/listings/{id}` | Edita um anúncio do próprio usuário; exige sessão e CSRF |
 | DELETE | `/api/listings/{id}` | Remove um anúncio do próprio usuário; exige sessão e CSRF |
 | PATCH | `/api/profile` | Atualiza nome de exibição, celular opcional, cidade e UF do usuário autenticado |
@@ -146,8 +145,7 @@ scripts/import_allcards.py
 tests/               API real, banco e importador sem rede
 data/cards.db        catálogo local gerado
 data/accounts.db     usuários e sessões locais
-data/listings.db     ofertas, desejos e metadados de fotos
-data/uploads/         fotos reais enviadas nos anúncios
+data/listings.db     ofertas e desejos locais
 ```
 
 `data/app.db` e `MANAPONTE_DB_PATH` são mantidos apenas para abrir ou migrar
@@ -161,7 +159,7 @@ caminho explicitamente ou definir essa variável sem as variáveis específicas.
 - a importação do Bulk Data é incremental, mas mantém um lote de até 500 tuplas normalizadas em memória;
 - a busca remota usa cache em memória limitado a 256 consultas, com TTL de cinco minutos e deduplicação de chamadas simultâneas;
 - SQLite e o servidor da biblioteca padrão são adequados ao esboço, não à operação pública;
-- imagens oficiais dependem de conexão e da disponibilidade do Scryfall; fotos reais do exemplar são armazenadas localmente em `data/uploads/`, mas produção deve usar armazenamento de objetos, quotas e política de retenção;
+- as imagens oficiais dependem de conexão e da disponibilidade do Scryfall; o backend não armazena mídia enviada por usuários para manter baixo o uso de disco e banda;
 - o GitHub Pages não hospeda o backend: persistência compartilhada exige uma API HTTPS separada, embora o frontend já suporte essa configuração via `public/config.js`.
 
 Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.
