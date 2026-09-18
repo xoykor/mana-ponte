@@ -1094,26 +1094,28 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         return self.send_json({"sets": found})
 
     def get_listings(self) -> None:
-        """Retorna ofertas filtradas por carta, localidade e modalidade."""
+        """Retorna ofertas com filtros compartilháveis e ordenação explícita."""
 
         query_params = self.params()
         clauses = []
         values = []
 
-        # Cada entrada liga um parâmetro público à coluna e ao conversor
-        # esperados. Os valores continuam parametrizados pelo SQLite.
         filters = {
             "card_id": ("l.card_id = ?", int),
             "set": ("c.set_code = ? COLLATE NOCASE", str),
             "lang": ("c.language = ? COLLATE NOCASE", str),
             "city": ("u.city = ? COLLATE NOCASE", str),
             "state": ("u.state = ? COLLATE NOCASE", str),
+            "condition": ("l.condition = ?", str),
         }
 
         for key, (sql, converter) in filters.items():
             if query_params.get(key):
+                value = converter(query_params[key])
+                if key == "condition" and value not in {"NM", "SP", "MP", "HP", "DMG"}:
+                    raise ValueError("Condição inválida")
                 clauses.append(sql)
-                values.append(converter(query_params[key]))
+                values.append(value)
 
         mine = query_params.get("mine", "").strip().lower()
         if mine in {"1", "true", "yes"}:
@@ -1140,20 +1142,39 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             else:
                 raise ValueError("Modalidade inválida")
 
-        page = positive_int(query_params.get("page"), 1, 100000)
-        limit = positive_int(query_params.get("limit"), 24, 100)
+        min_price = query_price_cents(query_params.get("min_price"))
+        max_price = query_price_cents(query_params.get("max_price"))
+        if min_price is not None:
+            clauses.append("l.price_cents >= ?")
+            values.append(min_price)
+        if max_price is not None:
+            clauses.append("l.price_cents <= ?")
+            values.append(max_price)
+        if min_price is not None and max_price is not None and min_price > max_price:
+            raise ValueError("Preço mínimo não pode ser maior que o máximo")
 
         if query_params.get("card"):
             clauses.append("c.name LIKE ? COLLATE NOCASE")
             values.append(f"%{query_params['card'][:100]}%")
 
+        sort = query_params.get("sort", "recent").strip().lower()
+        sort_sql = {
+            "recent": "l.created_at DESC, l.id DESC",
+            "oldest": "l.created_at ASC, l.id ASC",
+            "price_asc": "(l.price_cents IS NULL), l.price_cents ASC, l.id DESC",
+            "price_desc": "(l.price_cents IS NULL), l.price_cents DESC, l.id DESC",
+        }.get(sort)
+        if sort_sql is None:
+            raise ValueError("Ordenação inválida")
+
+        page = positive_int(query_params.get("page"), 1, 100000)
+        limit = positive_int(query_params.get("limit"), 24, 100)
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         cards_table = self.cards_table()
         users_table = self.users_table()
 
         connection = self.listings_connection()
         try:
-            # Contagem total respeita os filtros, para paginação sem perdas.
             total = connection.execute(
                 f"SELECT COUNT(*) FROM listings AS l "
                 f"JOIN {cards_table} AS c ON c.id = l.card_id "
@@ -1170,6 +1191,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     c.name,
                     c.set_code,
                     c.set_name,
+                    c.collector_number,
                     c.image_url,
                     u.username,
                     u.display_name,
@@ -1181,26 +1203,112 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.condition,
                     c.language AS language,
                     l.mode,
-                    l.contact_url,
-                    l.created_at
+                    l.created_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM listing_photos AS lp
+                        WHERE lp.listing_id = l.id
+                    ) AS photo_count,
+                    (
+                        SELECT '/uploads/' || lp.path
+                        FROM listing_photos AS lp
+                        WHERE lp.listing_id = l.id
+                        ORDER BY lp.position
+                        LIMIT 1
+                    ) AS primary_photo_url
                 FROM listings AS l
                 JOIN {cards_table} AS c ON c.id = l.card_id
                 JOIN {users_table} AS u ON u.id = l.user_id
                 """
                 + where
-                + " ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?"
+                + f" ORDER BY {sort_sql} LIMIT ? OFFSET ?"
             )
-            values = values + [limit, (page - 1) * limit]
-            found = rows(connection.execute(sql, values))
+            found = rows(
+                connection.execute(
+                    sql,
+                    values + [limit, (page - 1) * limit],
+                )
+            )
         finally:
             connection.close()
 
         return self.send_json(
-            {"listings": found, "total": total, "page": page, "limit": limit}
+            {
+                "listings": found,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "sort": sort,
+            }
+        )
+
+    def get_listing(self, listing_id: int) -> None:
+        """Retorna a página pública de um anúncio e suas fotos reais."""
+
+        cards_table = self.cards_table()
+        users_table = self.users_table()
+        connection = self.listings_connection()
+        try:
+            listing = connection.execute(
+                f"""
+                SELECT
+                    l.id,
+                    l.card_id,
+                    l.user_id,
+                    l.title,
+                    l.description,
+                    l.price_cents,
+                    l.condition,
+                    l.mode,
+                    l.created_at,
+                    c.name,
+                    c.set_code,
+                    c.set_name,
+                    c.collector_number,
+                    c.language,
+                    c.image_url,
+                    u.username,
+                    u.display_name,
+                    u.phone,
+                    u.city,
+                    u.state,
+                    u.created_at AS user_created_at
+                FROM listings AS l
+                JOIN {cards_table} AS c ON c.id = l.card_id
+                JOIN {users_table} AS u ON u.id = l.user_id
+                WHERE l.id = ?
+                """,
+                (listing_id,),
+            ).fetchone()
+            if not listing:
+                return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+            photos = rows(
+                connection.execute(
+                    """
+                    SELECT id, path, position
+                    FROM listing_photos
+                    WHERE listing_id = ?
+                    ORDER BY position, id
+                    """,
+                    (listing_id,),
+                )
+            )
+        finally:
+            connection.close()
+
+        for photo in photos:
+            photo["url"] = f"/uploads/{photo['path']}"
+
+        return self.send_json(
+            {
+                "listing": dict(listing),
+                "photos": photos,
+            }
         )
 
     def get_public_user(self, user_id: int) -> None:
-        """Retorna somente dados públicos do jogador e seus anúncios."""
+        """Retorna perfil público, estatísticas, anúncios e cartas procuradas."""
 
         cards_table = self.cards_table()
         users_table = self.users_table()
@@ -1208,7 +1316,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         try:
             user = connection.execute(
                 f"""
-                SELECT id, username, display_name, phone, city, state
+                SELECT id, username, display_name, phone, city, state, created_at
                 FROM {users_table}
                 WHERE id = ?
                 """,
@@ -1234,11 +1342,41 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.condition,
                         c.language AS language,
                         l.mode,
-                        l.created_at
+                        l.created_at,
+                        (
+                            SELECT COUNT(*)
+                            FROM listing_photos AS lp
+                            WHERE lp.listing_id = l.id
+                        ) AS photo_count
                     FROM listings AS l
                     JOIN {cards_table} AS c ON c.id = l.card_id
                     WHERE l.user_id = ?
                     ORDER BY l.created_at DESC, l.id DESC
+                    LIMIT 100
+                    """,
+                    (user_id,),
+                )
+            )
+
+            wants = rows(
+                connection.execute(
+                    f"""
+                    SELECT
+                        w.id,
+                        w.card_id,
+                        c.name,
+                        c.set_code,
+                        c.set_name,
+                        c.image_url,
+                        w.max_price_cents,
+                        w.desired_condition,
+                        w.desired_language,
+                        w.mode,
+                        w.created_at
+                    FROM wants AS w
+                    JOIN {cards_table} AS c ON c.id = w.card_id
+                    WHERE w.user_id = ?
+                    ORDER BY w.created_at DESC, w.id DESC
                     LIMIT 100
                     """,
                     (user_id,),
@@ -1250,7 +1388,12 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         return self.send_json(
             {
                 "user": dict(user),
+                "stats": {
+                    "listing_count": len(listings),
+                    "want_count": len(wants),
+                },
                 "listings": listings,
+                "wants": wants,
             }
         )
 
