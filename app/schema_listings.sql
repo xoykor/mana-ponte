@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS listings (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Desejo de compra/troca. O MVP ainda não expõe uma rota completa para wants.
+-- Desejo de compra/troca, exposto pela API autenticada de wants.
 CREATE TABLE IF NOT EXISTS wants (
     id INTEGER PRIMARY KEY,
     card_id INTEGER NOT NULL,
