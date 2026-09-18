@@ -74,6 +74,7 @@
     return {
       card: $("#listingSearch").value.trim(),
       set: $("#listingSet").value,
+      lang: $("#listingLanguage").value,
       city: $("#listingCity").value.trim(),
       state: $("#listingState").value,
       mode: $("#listingMode").value,
@@ -99,6 +100,14 @@
     const requestedMode = params.get("mode") || "";
     if (["", "venda", "troca", "ambos"].includes(requestedMode)) {
       $("#listingMode").value = requestedMode;
+    }
+
+    const requestedLanguage = String(params.get("lang") || "").toLowerCase();
+    if (
+      [...$("#listingLanguage").options]
+        .some(option => option.value === requestedLanguage)
+    ) {
+      $("#listingLanguage").value = requestedLanguage;
     }
   }
 
@@ -192,6 +201,8 @@
           (!filters.card ||
             String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
           (!filters.set || item.set_code === filters.set) &&
+          (!filters.lang ||
+            String(item.language || "").toLowerCase() === filters.lang.toLowerCase()) &&
           (!filters.city ||
             String(item.city || "").toLocaleLowerCase() ===
               filters.city.toLocaleLowerCase()) &&
