@@ -1430,6 +1430,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         c.image_url,
                         w.max_price_cents,
                         w.desired_condition,
+                        w.desired_language,
                         w.mode,
                         w.created_at
                     FROM wants AS w
@@ -1475,6 +1476,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         elif desired_condition not in {"NM", "SP", "MP", "HP", "DMG"}:
             raise ValueError("Condição desejada inválida")
 
+        desired_language = normalize_card_language(data.get("desired_language"))
+
         mode = str(data.get("mode", "ambos")).strip().lower()
         if mode not in {"compra", "troca", "ambos"}:
             raise ValueError("Modalidade de desejo inválida")
@@ -1496,11 +1499,13 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     user_id,
                     max_price_cents,
                     desired_condition,
+                    desired_language,
                     mode
-                ) VALUES (?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(card_id, user_id) DO UPDATE SET
                     max_price_cents = excluded.max_price_cents,
                     desired_condition = excluded.desired_condition,
+                    desired_language = excluded.desired_language,
                     mode = excluded.mode
                 """,
                 (
@@ -1508,6 +1513,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     session["user_id"],
                     max_price_cents,
                     desired_condition,
+                    desired_language,
                     mode,
                 ),
             )
@@ -1618,11 +1624,13 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         w.mode AS want_mode,
                         w.max_price_cents,
                         w.desired_condition,
+                        w.desired_language,
                         l.id AS listing_id,
                         l.card_id,
                         offered.name,
                         offered.set_code,
                         offered.set_name,
+                        offered.language,
                         offered.image_url,
                         l.title,
                         l.price_cents,
@@ -1650,6 +1658,10 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                           w.mode = 'ambos'
                           OR (w.mode = 'compra' AND l.mode IN ('venda', 'ambos'))
                           OR (w.mode = 'troca' AND l.mode IN ('troca', 'ambos'))
+                      )
+                      AND (
+                          w.desired_language IS NULL
+                          OR offered.language = w.desired_language COLLATE NOCASE
                       )
                       AND (
                           w.max_price_cents IS NULL
