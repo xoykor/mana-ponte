@@ -100,5 +100,53 @@ class DatabaseTest(unittest.TestCase):
                 migrated.execute(
                     "SELECT MAX(version) FROM schema_version"
                 ).fetchone()[0],
-                3,
+                4,
+            )
+
+    def test_migrates_marketplace_language_and_photo_tables(self):
+        """Banco antigo recebe idioma desejado e fotos sem perder anúncios."""
+
+        legacy = Path(self.temp.name) / "marketplace-legacy.db"
+        seed_all(legacy, reset=True)
+
+        with closing(get_connection(legacy)) as connection:
+            connection.execute("DROP TABLE listing_photos")
+            connection.execute(
+                """
+                CREATE TABLE wants_old AS
+                SELECT id, card_id, user_id, max_price_cents,
+                       desired_condition, mode, created_at
+                FROM wants
+                """
+            )
+            connection.execute("DROP TABLE wants")
+            connection.execute("ALTER TABLE wants_old RENAME TO wants")
+            connection.commit()
+
+        init_db(legacy)
+
+        with closing(get_connection(legacy)) as migrated:
+            want_columns = {
+                row["name"]
+                for row in migrated.execute("PRAGMA table_info(wants)")
+            }
+            tables = {
+                row[0]
+                for row in migrated.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            self.assertIn("desired_language", want_columns)
+            self.assertIn("listing_photos", tables)
+            self.assertEqual(
+                migrated.execute(
+                    "SELECT COUNT(*) FROM listings"
+                ).fetchone()[0],
+                6,
+            )
+            self.assertEqual(
+                migrated.execute(
+                    "SELECT MAX(version) FROM schema_version"
+                ).fetchone()[0],
+                4,
             )
