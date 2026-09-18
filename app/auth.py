@@ -215,6 +215,7 @@ def get_session(
                 u.username,
                 u.email,
                 u.display_name,
+                u.phone,
                 u.city,
                 u.state,
                 u.email_verified
