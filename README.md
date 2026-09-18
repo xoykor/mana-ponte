@@ -6,7 +6,7 @@ Protótipo funcional de uma vitrine comunitária brasileira para jogadores de Ma
 
 **https://xoykor.github.io/mana-ponte/**
 
-O GitHub Pages executa a versão estática em `public/`, com catálogo e ofertas demonstrativas em JSON. Busca, filtros e criação demonstrativa de ofertas funcionam no navegador; ofertas criadas ali ficam somente no `localStorage`. Cadastro real fica indisponível nessa versão porque exige a API e o banco. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
+O GitHub Pages executa `public/`. Por padrão ele funciona como demonstração com JSON e `localStorage`, mas o mesmo frontend pode usar uma API pública configurando `window.MANAPONTE_API_BASE` em `public/config.js`. Quando uma API é configurada, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real. O deploy é automático pelo workflow `.github/workflows/pages.yml` a cada push na branch `main`.
 
 ## Executar
 
@@ -19,7 +19,7 @@ cd /home/x/Documentos/Estudo/Projetinho
 
 Acesse `http://127.0.0.1:8000`. O script garante de forma idempotente os dados demonstrativos com 12 impressões reais, 4 perfis e 6 anúncios, sem apagar um catálogo já importado. O estado local fica em três arquivos: `data/cards.db`, `data/accounts.db` e `data/listings.db`.
 
-Se a porta estiver ocupada: `MANAPONTE_PORT=8001 ./scripts/dev.sh`.
+Se a porta estiver ocupada: `env MANAPONTE_PORT=8001 ./scripts/dev.sh`.
 
 Conta local de desenvolvimento: `danton` / `ManaPonte!2026`. Essa credencial é exclusivamente um fixture público; nunca a reutilize em produção.
 
@@ -74,8 +74,11 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/auth/logout` | Revoga a sessão; exige CSRF |
 | GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo; retorna `cards`, `page`, `limit`, `total` e `source` |
 | GET | `/api/sets` | Coleções e contagem de impressões |
-| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&page=&limit=` | Ofertas filtradas e paginadas; `venda` e `troca` também incluem anúncios `ambos` |
+| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&mine=&page=&limit=` | Ofertas filtradas e paginadas; `mine=1` lista somente os anúncios autenticados |
 | POST | `/api/listings` | Cria uma oferta validada |
+| PATCH | `/api/listings/{id}` | Edita um anúncio do próprio usuário; exige sessão e CSRF |
+| DELETE | `/api/listings/{id}` | Remove um anúncio do próprio usuário; exige sessão e CSRF |
+| PATCH | `/api/profile` | Atualiza nome de exibição, cidade e UF do usuário autenticado |
 | GET | `/api/wants?page=&limit=` | Lista os desejos do usuário autenticado |
 | POST | `/api/wants` | Cria ou atualiza um desejo; exige sessão e CSRF |
 | DELETE | `/api/wants/{id}` | Remove um desejo do próprio usuário; exige sessão e CSRF |
@@ -103,6 +106,26 @@ máximo 300 caracteres. O idioma da oferta é o idioma da impressão selecionada
 ele é devolvido pela listagem junto com título, descrição, preço e contato.
 
 Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
+
+### Frontend no GitHub Pages + API externa
+
+Defina a URL pública do backend em `public/config.js`:
+
+```js
+window.MANAPONTE_API_BASE = "https://api.exemplo.com";
+```
+
+No backend, autorize somente a origem do Pages e habilite cookies cross-site seguros:
+
+```bash
+env \
+  MANAPONTE_ALLOWED_ORIGIN=https://xoykor.github.io \
+  MANAPONTE_SECURE_COOKIES=1 \
+  MANAPONTE_CROSS_SITE_COOKIES=1 \
+  ./scripts/dev.sh
+```
+
+`MANAPONTE_ALLOWED_ORIGIN` aceita uma lista separada por vírgulas. O backend só devolve CORS para origens explicitamente configuradas. O modo cross-site força `SameSite=None; Secure`, necessário para a sessão funcionar quando frontend e API estão em domínios diferentes. Em produção, a API precisa ficar atrás de HTTPS e de um servidor/proxy apropriado; o servidor da biblioteca padrão continua sendo apenas a implementação de protótipo.
 
 Os caminhos dos três bancos podem ser substituídos por `MANAPONTE_CARDS_DB_PATH`, `MANAPONTE_ACCOUNTS_DB_PATH` e `MANAPONTE_LISTINGS_DB_PATH`. Um caminho único explícito continua disponível para compatibilidade com instalações antigas.
 
@@ -132,6 +155,6 @@ caminho explicitamente ou definir essa variável sem as variáveis específicas.
 - a busca remota usa cache em memória limitado a 256 consultas, com TTL de cinco minutos e deduplicação de chamadas simultâneas;
 - SQLite e o servidor da biblioteca padrão são adequados ao esboço, não à operação pública;
 - imagens dependem de conexão e da disponibilidade do Scryfall; a coleta em massa de imagens locais é uma opção futura e não faz parte do protótipo;
-- no GitHub Pages não há persistência compartilhada: para contas e anúncios reais, o frontend deverá apontar para uma API hospedada separadamente.
+- o GitHub Pages não hospeda o backend: persistência compartilhada exige uma API HTTPS separada, embora o frontend já suporte essa configuração via `public/config.js`.
 
 Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.
