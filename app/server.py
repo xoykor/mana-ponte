@@ -1876,8 +1876,105 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         return self.send_json({"id": listing_id, "message": "Anúncio atualizado"})
 
+    def replace_listing_photos(self, listing_id: int, data: dict) -> None:
+        """Substitui as fotos reais de um anúncio pertencente ao usuário."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para enviar fotos"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        photos = data.get("photos")
+        if not isinstance(photos, list):
+            raise ValueError("photos deve ser uma lista")
+        if len(photos) > MAX_LISTING_PHOTOS:
+            raise ValueError("Um anúncio pode ter no máximo 4 fotos")
+
+        # Toda a validação ocorre antes de alterar banco ou arquivos antigos.
+        decoded = [decode_photo_data_url(photo) for photo in photos]
+
+        connection = self.listings_connection()
+        written_paths: list[str] = []
+        old_paths: list[str] = []
+        try:
+            owner = connection.execute(
+                "SELECT 1 FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            ).fetchone()
+            if not owner:
+                return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+            old_paths = [
+                row["path"]
+                for row in connection.execute(
+                    "SELECT path FROM listing_photos WHERE listing_id = ?",
+                    (listing_id,),
+                )
+            ]
+
+            directory = UPLOAD_DIR / "listings" / str(listing_id)
+            directory.mkdir(parents=True, exist_ok=True)
+
+            for position, (content, extension) in enumerate(decoded):
+                filename = f"{secrets.token_hex(16)}{extension}"
+                relative = f"listings/{listing_id}/{filename}"
+                destination = (UPLOAD_DIR / relative).resolve()
+                upload_root = UPLOAD_DIR.resolve()
+                if upload_root not in destination.parents:
+                    raise ValueError("Caminho de foto inválido")
+                destination.write_bytes(content)
+                written_paths.append(relative)
+
+            connection.execute(
+                "DELETE FROM listing_photos WHERE listing_id = ?",
+                (listing_id,),
+            )
+            connection.executemany(
+                """
+                INSERT INTO listing_photos(listing_id, path, position)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (listing_id, path, position)
+                    for position, path in enumerate(written_paths)
+                ],
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            for relative in written_paths:
+                try:
+                    (UPLOAD_DIR / relative).unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
+        finally:
+            connection.close()
+
+        # Só apagamos os arquivos antigos depois do commit com os novos.
+        for relative in old_paths:
+            if relative in written_paths:
+                continue
+            try:
+                candidate = (UPLOAD_DIR / relative).resolve()
+                if UPLOAD_DIR.resolve() in candidate.parents:
+                    candidate.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        return self.send_json(
+            {
+                "message": "Fotos atualizadas",
+                "photos": [
+                    {"position": position, "url": f"/uploads/{path}"}
+                    for position, path in enumerate(written_paths)
+                ],
+            }
+        )
+
     def delete_listing(self, listing_id: int) -> None:
-        """Remove somente um anúncio pertencente ao usuário autenticado."""
+        """Remove um anúncio do usuário e limpa as fotos físicas associadas."""
 
         session = self.current_session()
         if not session:
@@ -1886,7 +1983,22 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             return self.send_json({"error": "Token CSRF inválido"}, 403)
 
         connection = self.listings_connection()
+        photo_paths: list[str] = []
         try:
+            owner = connection.execute(
+                "SELECT 1 FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            ).fetchone()
+            if not owner:
+                return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+            photo_paths = [
+                row["path"]
+                for row in connection.execute(
+                    "SELECT path FROM listing_photos WHERE listing_id = ?",
+                    (listing_id,),
+                )
+            ]
             cursor = connection.execute(
                 "DELETE FROM listings WHERE id = ? AND user_id = ?",
                 (listing_id, session["user_id"]),
@@ -1897,7 +2009,40 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         if cursor.rowcount == 0:
             return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+        for relative in photo_paths:
+            try:
+                candidate = (UPLOAD_DIR / relative).resolve()
+                if UPLOAD_DIR.resolve() in candidate.parents:
+                    candidate.unlink(missing_ok=True)
+            except OSError:
+                pass
+
         return self.send_json({"message": "Anúncio removido"})
+
+    def serve_upload(self, path: str) -> None:
+        """Serve somente fotos que estejam dentro de data/uploads."""
+
+        relative = path.removeprefix("/uploads/")
+        if not relative:
+            return self.send_error(404)
+
+        candidate = (UPLOAD_DIR / relative).resolve()
+        upload_root = UPLOAD_DIR.resolve()
+        if upload_root not in candidate.parents:
+            return self.send_error(403)
+        if not candidate.is_file():
+            return self.send_error(404)
+
+        body = candidate.read_bytes()
+        content_type = mimetypes.guess_type(candidate.name)[0]
+        self.send_response(200)
+        self.send_header("Content-Type", content_type or "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.end_headers()
+        self.wfile.write(body)
 
     def serve_static(self, path: str) -> None:
         """Serve um arquivo de ``public/`` sem permitir sair do diretório."""
