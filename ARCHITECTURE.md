@@ -50,7 +50,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 ### Busca
 
-1. A interface envia nome, coleção, cidade, UF e modalidade.
+1. A interface envia nome, coleção, idioma da impressão, cidade, UF e modalidade.
 2. A API monta somente cláusulas permitidas e usa parâmetros SQL.
 3. `cards.db` identifica a impressão; a conexão de `listings.db` anexa `cards.db` e `accounts.db` para unir oferta, usuário e localização.
 4. A resposta retorna URLs de imagem do Scryfall e metadados da oferta.
@@ -64,7 +64,7 @@ consulta enquanto ela está em voo.
 `GET /api/listings` usa os mesmos campos de paginação e conta o total depois
 dos filtros. A ordenação por `created_at DESC, id DESC` mantém páginas
 repetíveis enquanto os dados não mudam. Cada anúncio devolve título,
-descrição, idioma e preço. O campo legado `contact_url` continua no contrato por compatibilidade, mas a interface usa o perfil público do jogador como ponto de contato. `mine=1`
+descrição, idioma e preço. O idioma é lido da impressão em `cards`, que é a fonte de verdade; a coluna legada em `listings` é mantida apenas por compatibilidade. O campo legado `contact_url` continua no contrato por compatibilidade, mas a interface usa o perfil público do jogador como ponto de contato. `mine=1`
 restringe a consulta ao usuário autenticado. Filtros de venda/troca incluem
 anúncios marcados como `ambos`.
 
