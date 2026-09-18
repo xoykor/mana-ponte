@@ -8,9 +8,24 @@
     money,
     formatPhone,
     phoneHref,
+    whatsappHref,
   } = window.ManaPontePage;
 
   const $ = selector => document.querySelector(selector);
+
+  function formatDate(value) {
+    if (!value) {
+      return "—";
+    }
+    const date = new Date(String(value).replace(" ", "T") + "Z");
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+    return new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  }
 
   function renderListings(listings) {
     const entries = Array.isArray(listings) ? listings : [];
@@ -36,12 +51,17 @@
           >
           <div>
             <span class="badge">${esc(item.mode)}</span>
-            <h3>${esc(item.title || name)}</h3>
+            <h3>
+              <a class="listing-title-link" href="anuncio.html?id=${encodeURIComponent(item.id)}">
+                ${esc(item.title || name)}
+              </a>
+            </h3>
             <p class="card-name">${esc(name)}</p>
             <div class="meta">
               ${esc(String(item.set_code || "").toUpperCase())}
               · ${esc(item.condition)}
               · ${esc(String(item.language || "en").toUpperCase())}
+              ${Number(item.photo_count || 0) ? ` · ${Number(item.photo_count)} foto(s)` : ""}
             </div>
             <div class="price">${money(item.price_cents)}</div>
             ${item.description
@@ -51,6 +71,38 @@
         </article>
       `;
     }).join("");
+  }
+
+  function renderWants(wants) {
+    const entries = Array.isArray(wants) ? wants : [];
+    if (!entries.length) {
+      $("#profilePageWants").innerHTML =
+        '<p class="empty-state">Este jogador não publicou cartas procuradas.</p>';
+      return;
+    }
+
+    $("#profilePageWants").innerHTML = entries.map(item => `
+      <article class="account-item">
+        <img
+          src="${esc(item.image_url)}"
+          alt="${esc(item.name)}"
+          data-card-image
+          data-card-label="${esc(item.name)}"
+          tabindex="0"
+          role="button"
+        >
+        <div>
+          <h4>${esc(item.name)}</h4>
+          <p class="meta">
+            ${esc(String(item.set_code || "").toUpperCase())}
+            · ${esc(item.mode)}
+            · idioma: ${esc(String(item.desired_language || "qualquer").toUpperCase())}
+            · condição mínima: ${esc(item.desired_condition || "qualquer")}
+            · máximo: ${money(item.max_price_cents)}
+          </p>
+        </div>
+      </article>
+    `).join("");
   }
 
   async function loadProfile() {
@@ -67,22 +119,34 @@
 
     const data = await getJson(`/api/users/${userId}`);
     const user = data.user;
+    const stats = data.stats || {};
 
     document.title = `${user.display_name} — ManaPonte`;
     $("#profilePageName").textContent = user.display_name;
     $("#profilePageHandle").textContent = `@${user.username}`;
     $("#profilePageLocation").textContent = `${user.city} / ${user.state}`;
+    $("#profilePageJoined").textContent = formatDate(user.created_at);
+    $("#profilePageListingCount").textContent = String(stats.listing_count || 0);
+    $("#profilePageWantCount").textContent = String(stats.want_count || 0);
 
     const phone = String(user.phone || "").trim();
     if (phone) {
       const phoneLink = $("#profilePagePhone");
       phoneLink.hidden = false;
       phoneLink.href = phoneHref(phone);
-      phoneLink.textContent = formatPhone(phone);
+      phoneLink.textContent = `Ligar: ${formatPhone(phone)}`;
+
+      const whatsapp = $("#profilePageWhatsapp");
+      whatsapp.hidden = false;
+      whatsapp.href = whatsappHref(
+        phone,
+        `Olá, ${user.display_name}! Encontrei seu perfil no ManaPonte.`,
+      );
       $("#profilePageNoPhone").hidden = true;
     }
 
     renderListings(data.listings);
+    renderWants(data.wants);
     $("#profilePageStatus").textContent = "";
   }
 
@@ -90,5 +154,6 @@
     $("#profilePageName").textContent = "Perfil indisponível";
     $("#profilePageStatus").textContent = error.message;
     $("#profilePageListings").innerHTML = "";
+    $("#profilePageWants").innerHTML = "";
   });
 }());
