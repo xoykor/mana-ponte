@@ -272,6 +272,23 @@ function filters() {
 
 
 /**
+ * "Ambos" representa uma oferta compatível com venda e com troca.
+ */
+function listingModeMatches(itemMode, selectedMode) {
+  if (!selectedMode) {
+    return true;
+  }
+  if (selectedMode === "venda") {
+    return itemMode === "venda" || itemMode === "ambos";
+  }
+  if (selectedMode === "troca") {
+    return itemMode === "troca" || itemMode === "ambos";
+  }
+  return itemMode === selectedMode;
+}
+
+
+/**
  * Busca e renderiza as ofertas da comunidade.
  *
  * No modo estático filtramos os JSONs diretamente no navegador. No modo
@@ -299,7 +316,7 @@ async function loadListings({ page = 1 } = {}) {
           String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
         (!selected.set || item.set_code === selected.set) &&
         (!selected.state || item.state === selected.state) &&
-        (!selected.mode || item.mode === selected.mode)
+        listingModeMatches(item.mode, selected.mode)
       );
 
       listingsPage = 1;
