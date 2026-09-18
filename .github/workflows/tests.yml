@@ -22,5 +22,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Verificar JavaScript
+        run: |
+          node --check public/app.js
+          node --check public/card-picker.js
+          node --check public/config.js
+
       - name: Executar suíte offline
         run: python3 -m unittest discover -s tests -v
