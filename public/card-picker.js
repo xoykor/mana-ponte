@@ -41,6 +41,7 @@
       root.querySelector("[data-card-id]") ||
       root.querySelector("input[name='card_id']");
     const hint = root.querySelector("[data-card-hint]");
+    const language = root.querySelector("[data-card-language]");
 
     // O endpoint normal é o backend local, mas pode ser substituído por uma
     // rota diferente em uma página incorporada.
@@ -81,7 +82,11 @@
     function label(card) {
       const set = String(card.set_code || card.setCode || "").toUpperCase();
       const number = card.collector_number || card.collectorNumber || "";
-      return `${card.name || "Carta"} — ${set}${number ? ` #${number}` : ""}`;
+      const lang = String(card.language || card.lang || "").toUpperCase();
+      return (
+        `${card.name || "Carta"} — ${set}${number ? ` #${number}` : ""}` +
+        `${lang ? ` · ${lang}` : ""}`
+      );
     }
 
 
@@ -211,6 +216,18 @@
     function select(card) {
       invalidatePendingRequest();
       selectedCard = card || null;
+
+      const selectedLanguage = String(
+        selectedCard?.language || selectedCard?.lang || ""
+      ).toLowerCase();
+      if (
+        language &&
+        selectedLanguage &&
+        [...language.options].some(option => option.value === selectedLanguage)
+      ) {
+        language.value = selectedLanguage;
+      }
+
       resultCards = [];
       nextPage = 1;
       hasMore = false;
@@ -260,9 +277,12 @@
      */
     function staticSearch(query) {
       const normalized = query.toLocaleLowerCase();
+      const requestedLanguage = String(language?.value || "").toLowerCase();
 
       return staticCards
         .filter(card =>
+          (!requestedLanguage ||
+            String(card.language || card.lang || "").toLowerCase() === requestedLanguage) &&
           `${card.name} ${card.set_code} ${card.collector_number}`
             .toLocaleLowerCase()
             .includes(normalized)
@@ -323,6 +343,9 @@
       try {
         const url = new URL(source, global.location.href);
         url.searchParams.set("q", query);
+        if (language?.value) {
+          url.searchParams.set("lang", language.value);
+        }
         url.searchParams.set("page", String(page));
         url.searchParams.set("limit", "20");
 
@@ -410,6 +433,30 @@
         searchCards();
       }, 220);
     });
+
+    // Trocar o idioma invalida uma impressão já escolhida e refaz a busca.
+    language?.addEventListener("change", () => {
+      const previous = selectedCard;
+      if (previous) {
+        search.value = previous.name || "";
+        selectedCard = null;
+        renderSelected();
+        root.dispatchEvent(
+          new CustomEvent("cardselected", { detail: null })
+        );
+      }
+
+      invalidatePendingRequest();
+      resultCards = [];
+      nextPage = 1;
+      hasMore = false;
+      renderResults([], "");
+
+      if (search.value.trim().length >= 2) {
+        searchCards();
+      }
+    });
+
 
     // Escape limpa a seleção sem precisar clicar em outro controle.
     search.addEventListener("keydown", event => {

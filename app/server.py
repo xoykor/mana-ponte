@@ -1017,6 +1017,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         filters = {
             "card_id": ("l.card_id = ?", int),
             "set": ("c.set_code = ? COLLATE NOCASE", str),
+            "lang": ("c.language = ? COLLATE NOCASE", str),
             "city": ("u.city = ? COLLATE NOCASE", str),
             "state": ("u.state = ? COLLATE NOCASE", str),
         }
@@ -1090,7 +1091,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.description,
                     l.price_cents,
                     l.condition,
-                    l.language,
+                    c.language AS language,
                     l.mode,
                     l.contact_url,
                     l.created_at
@@ -1143,7 +1144,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.description,
                         l.price_cents,
                         l.condition,
-                        l.language,
+                        c.language AS language,
                         l.mode,
                         l.created_at
                     FROM listings AS l
@@ -1502,11 +1503,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         connection = self.listings_connection()
         try:
             cards_table = self.cards_table()
-            card_exists = connection.execute(
-                f"SELECT 1 FROM {cards_table} WHERE id = ?",
+            card = connection.execute(
+                f"SELECT language FROM {cards_table} WHERE id = ?",
                 (card_id,),
             ).fetchone()
-            if not card_exists:
+            if not card:
                 raise ValueError("Carta não encontrada")
 
             cursor = connection.execute(
@@ -1530,7 +1531,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     description,
                     price_cents,
                     condition,
-                    str(data.get("language", "en"))[:8],
+                    str(card["language"] or "en")[:8],
                     mode,
                     contact_url,
                 ),
@@ -1596,14 +1597,16 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 raise ValueError("URL de contato deve ter no máximo 300 caracteres")
 
             cards_table = self.cards_table()
-            card_exists = connection.execute(
-                f"SELECT 1 FROM {cards_table} WHERE id = ?",
+            card = connection.execute(
+                f"SELECT language FROM {cards_table} WHERE id = ?",
                 (card_id,),
             ).fetchone()
-            if not card_exists:
+            if not card:
                 raise ValueError("Carta não encontrada")
 
-            language = str(data.get("language", current["language"]))[:8]
+            # O idioma pertence à impressão escolhida, não a um campo livre do
+            # anúncio. Isso mantém filtros e matching coerentes com o catálogo.
+            language = str(card["language"] or "en")[:8]
             connection.execute(
                 """
                 UPDATE listings
