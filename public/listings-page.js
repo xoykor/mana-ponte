@@ -192,9 +192,7 @@
             <div class="meta">
               ${esc(String(item.set_code || "").toUpperCase())}
               · ${esc(item.condition)}
-              · ${esc(String(item.language || "en").toUpperCase())}
-              ${Number(item.photo_count || 0) ? ` · ${Number(item.photo_count)} foto(s)` : ""}
-            </div>
+              · ${esc(String(item.language || "en").toUpperCase())}            </div>
             <div class="price">${money(item.price_cents)}</div>
             ${item.description ? `<p class="description">${esc(item.description)}</p>` : ""}
             <div class="meta">
