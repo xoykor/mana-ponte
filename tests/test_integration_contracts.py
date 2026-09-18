@@ -72,20 +72,52 @@ class SplitApiContractTest(unittest.TestCase):
         self.csrf = payload["csrf_token"]
 
     def test_listing_contact_and_language_round_trip(self):
-        """Oferta criada pela API reaparece com contato e idioma no join."""
+        """Oferta usa o idioma da impressão mesmo com bancos separados."""
 
         self.login_demo()
         contact = "https://example.com/contato/pt"
+
+        with closing(get_connection(self.paths["cards"])) as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO cards(
+                    scryfall_id,
+                    oracle_id,
+                    name,
+                    set_code,
+                    set_name,
+                    collector_number,
+                    language,
+                    rarity,
+                    image_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "split-pt-print",
+                    "split-language-oracle",
+                    "Carta Split PT",
+                    "tst",
+                    "Teste",
+                    "77",
+                    "pt",
+                    "common",
+                    "https://example.test/split-card.jpg",
+                ),
+            )
+            card_id = cursor.lastrowid
+            connection.commit()
+
         status, created = self.request(
             "POST",
             "/api/listings",
             {
-                "card_id": 2,
-                "title": "Sol Ring em português",
+                "card_id": card_id,
+                "title": "Impressão em português",
                 "description": "Edição brasileira, bem conservada.",
                 "price_cents": 2500,
                 "condition": "NM",
-                "language": "pt",
+                # Deve ser ignorado: o idioma pertence à impressão.
+                "language": "en",
                 "mode": "venda",
                 "contact_url": contact,
             },
@@ -93,22 +125,43 @@ class SplitApiContractTest(unittest.TestCase):
         )
         self.assertEqual(status, 201)
 
-        status, payload = self.request(
-            "GET",
-            f"/api/listings?card_id=2&limit=20&page=1",
-        )
-        self.assertEqual(status, 200)
-        found = next(item for item in payload["listings"] if item["id"] == created["id"])
-        self.assertEqual(found["contact_url"], contact)
-        self.assertEqual(found["language"], "pt")
-        self.assertEqual(found["description"], "Edição brasileira, bem conservada.")
+        try:
+            status, payload = self.request(
+                "GET",
+                f"/api/listings?lang=pt&limit=20&page=1",
+            )
+            self.assertEqual(status, 200)
+            found = next(
+                item
+                for item in payload["listings"]
+                if item["id"] == created["id"]
+            )
+            self.assertEqual(found["contact_url"], contact)
+            self.assertEqual(found["language"], "pt")
+            self.assertEqual(
+                found["description"],
+                "Edição brasileira, bem conservada.",
+            )
 
-        with closing(get_connection(self.paths["listings"])) as connection:
-            row = connection.execute(
-                "SELECT contact_url, language FROM listings WHERE id = ?",
-                (created["id"],),
-            ).fetchone()
-        self.assertEqual(tuple(row), (contact, "pt"))
+            with closing(get_connection(self.paths["listings"])) as connection:
+                row = connection.execute(
+                    "SELECT contact_url, language FROM listings WHERE id = ?",
+                    (created["id"],),
+                ).fetchone()
+            self.assertEqual(tuple(row), (contact, "pt"))
+        finally:
+            with closing(get_connection(self.paths["listings"])) as connection:
+                connection.execute(
+                    "DELETE FROM listings WHERE id = ?",
+                    (created["id"],),
+                )
+                connection.commit()
+            with closing(get_connection(self.paths["cards"])) as connection:
+                connection.execute(
+                    "DELETE FROM cards WHERE id = ?",
+                    (card_id,),
+                )
+                connection.commit()
 
     def test_listing_pagination_contract_in_split_mode(self):
         """Páginas têm tamanho estável e cobrem todas as ofertas uma vez."""
