@@ -297,6 +297,24 @@
           <textarea name="description" maxlength="1000" rows="3"></textarea>
         </label>
 
+        <label>
+          Fotos reais do exemplar
+          <input
+            id="listingPhotos"
+            name="photos"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+          >
+          <small>Opcional. Até 4 fotos; o navegador reduz imagens grandes antes do envio.</small>
+        </label>
+
+        <label class="check-row" id="removeListingPhotosRow" hidden>
+          <input name="remove_photos" type="checkbox">
+          Remover todas as fotos atuais
+        </label>
+        <p id="listingPhotoHint" class="status"></p>
+
         <p class="notice">
           Escolha a impressão exata; ela será vinculada à sua oferta.
         </p>
@@ -584,6 +602,26 @@
             </select>
           </label>
         </div>
+
+        <label>
+          Idioma desejado para o match
+          <select name="desired_language">
+            <option value="">Qualquer idioma</option>
+            <option value="pt">Português</option>
+            <option value="en">Inglês</option>
+            <option value="es">Espanhol</option>
+            <option value="fr">Francês</option>
+            <option value="de">Alemão</option>
+            <option value="it">Italiano</option>
+            <option value="ja">Japonês</option>
+            <option value="ko">Coreano</option>
+            <option value="ru">Russo</option>
+            <option value="zhs">Chinês simplificado</option>
+            <option value="zht">Chinês tradicional</option>
+            <option value="ph">Phyrexiano</option>
+          </select>
+          <small>“Qualquer idioma” aceita reimpressões em qualquer linguagem.</small>
+        </label>
 
         <label>
           Preço máximo em reais
