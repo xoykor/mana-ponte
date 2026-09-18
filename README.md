@@ -12,7 +12,7 @@ O frontend em `public/` está pronto para GitHub Pages. No estado atual do repos
 
 Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real.
 
-A interface agora possui páginas próprias: `anuncios.html` concentra a busca completa de anúncios e `perfil.html?user=<id>` representa o perfil público compartilhável de cada jogador. O celular é opcional; quando informado pelo próprio usuário, fica visível no perfil como link de chamada. Qualquer imagem de carta marcada pela interface pode ser ampliada; no seletor, clicar na arte amplia e clicar no nome escolhe a impressão.
+A interface agora possui páginas próprias: `anuncios.html` concentra a busca completa de anúncios e `perfil.html?user=<id>` representa o perfil público compartilhável de cada jogador. A busca pode filtrar a linguagem da impressão (`pt`, `en`, `ja` etc.), inclusive quando vem da home por query string. Os seletores de impressão de anúncio e desejo usam o mesmo filtro de idioma. O celular é opcional; quando informado pelo próprio usuário, fica visível no perfil como link de chamada. Qualquer imagem de carta marcada pela interface pode ser ampliada; no seletor, clicar na arte amplia e clicar no nome escolhe a impressão.
 
 ## Executar
 
@@ -80,7 +80,7 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/auth/logout` | Revoga a sessão; exige CSRF |
 | GET | `/api/cards?q=&set=&lang=&page=&limit=` | Busca paginada no catálogo; retorna `cards`, `page`, `limit`, `total` e `source` |
 | GET | `/api/sets` | Coleções e contagem de impressões |
-| GET | `/api/listings?card=&card_id=&set=&city=&state=&mode=&mine=&page=&limit=` | Ofertas filtradas e paginadas; `mine=1` lista somente os anúncios autenticados |
+| GET | `/api/listings?card=&card_id=&set=&lang=&city=&state=&mode=&mine=&page=&limit=` | Ofertas filtradas e paginadas; `lang` filtra pela linguagem real da impressão e `mine=1` lista somente os anúncios autenticados |
 | POST | `/api/listings` | Cria uma oferta validada |
 | PATCH | `/api/listings/{id}` | Edita um anúncio do próprio usuário; exige sessão e CSRF |
 | DELETE | `/api/listings/{id}` | Remove um anúncio do próprio usuário; exige sessão e CSRF |
@@ -107,7 +107,7 @@ Exemplo de criação:
 
 Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/me`. O backend ignora qualquer `user_id` do cliente e atribui a oferta ao usuário da sessão.
 
-`contact_url` permanece aceito apenas para compatibilidade com dados/clientes antigos, mas não faz mais parte do fluxo de contato da interface. O contato comunitário começa pelo perfil público do outro jogador. O idioma da oferta é o idioma da impressão selecionada.
+`contact_url` permanece aceito apenas para compatibilidade com dados/clientes antigos, mas não faz mais parte do fluxo de contato da interface. O contato comunitário começa pelo perfil público do outro jogador. O idioma público da oferta é derivado da impressão selecionada no catálogo; valores de `language` enviados pelo cliente não substituem o idioma real da carta.
 
 Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. O celular aceita de 10 a 15 dígitos, é opcional e só é publicado quando o usuário o informa. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
