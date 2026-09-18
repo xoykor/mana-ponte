@@ -10,7 +10,7 @@ URL prevista quando Pages estiver habilitado:
 
 O frontend em `public/` está pronto para GitHub Pages. No estado atual do repositório, o próprio GitHub informou que o site Pages ainda não foi habilitado; por isso o workflow detecta essa situação e encerra sem tratar a ausência de Pages como falha. Para publicar, habilite **Settings → Pages → Build and deployment → Source: GitHub Actions** e execute novamente o workflow `Publicar no GitHub Pages`.
 
-Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real.
+Sem uma API configurada, a página funciona como demonstração com JSON e `localStorage`. Com `window.MANAPONTE_API_BASE` definido em `public/config.js`, cadastro, sessão, perfil, anúncios, desejos e matches passam a usar o backend real. Matches e anúncios do backend abrem o perfil público do jogador. No seletor de cartas, clicar na miniatura amplia a arte e clicar no nome seleciona a impressão.
 
 ## Executar
 
@@ -87,7 +87,8 @@ Quando uma busca da API tem três ou mais caracteres, o ManaPonte também consul
 | POST | `/api/wants` | Cria ou atualiza um desejo; exige sessão e CSRF |
 | DELETE | `/api/wants/{id}` | Remove um desejo do próprio usuário; exige sessão e CSRF |
 | GET | `/api/matches?card_id=` | Busca ofertas da impressão ou de reimpressões com o mesmo `oracle_id` |
-| GET | `/api/matches` | Cruza os desejos do usuário autenticado com ofertas compatíveis |
+| GET | `/api/matches` | Cruza os desejos do usuário autenticado com ofertas compatíveis e identifica o outro jogador |
+| GET | `/api/users/{id}` | Perfil público do jogador com nome, cidade/UF e anúncios ativos |
 
 Exemplo de criação:
 
@@ -98,16 +99,13 @@ Exemplo de criação:
   "price_cents": 2500,
   "condition": "NM",
   "language": "en",
-  "mode": "ambos",
-  "contact_url": "https://exemplo.com/contato"
+  "mode": "ambos"
 }
 ```
 
 Envie o cookie de sessão e o cabeçalho `X-CSRF-Token` recebido em `/api/auth/me`. O backend ignora qualquer `user_id` do cliente e atribui a oferta ao usuário da sessão.
 
-`contact_url` pode ser vazio ou usar somente `http`/`https` com host válido e no
-máximo 300 caracteres. O idioma da oferta é o idioma da impressão selecionada;
-ele é devolvido pela listagem junto com título, descrição, preço e contato.
+`contact_url` permanece aceito apenas para compatibilidade com dados/clientes antigos, mas não faz mais parte do fluxo de contato da interface. O contato comunitário começa pelo perfil público do outro jogador. O idioma da oferta é o idioma da impressão selecionada.
 
 Senhas usam `scrypt` com salt individual. A sessão usa token opaco em cookie `HttpOnly` e apenas seu SHA-256 é persistido. Em HTTPS, execute com `MANAPONTE_SECURE_COOKIES=1` para adicionar `Secure` ao cookie.
 
