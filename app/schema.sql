@@ -65,15 +65,6 @@ CREATE TABLE IF NOT EXISTS wants (
     UNIQUE(card_id, user_id)
 );
 
-CREATE TABLE IF NOT EXISTS listing_photos (
-    id INTEGER PRIMARY KEY,
-    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
-    path TEXT NOT NULL,
-    position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 3),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(listing_id, position)
-);
-
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
