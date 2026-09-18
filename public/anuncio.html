@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Detalhes de um anúncio no ManaPonte.">
+    <title>Anúncio — ManaPonte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="auth.css">
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
+      <nav>
+        <a href="anuncios.html">Anúncios</a>
+        <a href="index.html#como">Como funciona</a>
+      </nav>
+      <div class="auth-actions">
+        <a class="secondary compact" href="anuncios.html">Voltar aos anúncios</a>
+      </div>
+    </header>
+
+    <main class="standalone-page">
+      <section class="section listing-detail">
+        <p id="listingDetailStatus" class="status">Carregando anúncio…</p>
+
+        <div id="listingDetailContent" hidden>
+          <div class="listing-detail-card">
+            <div class="listing-detail-art">
+              <img
+                id="listingDetailCardImage"
+                alt=""
+                data-card-image
+                tabindex="0"
+                role="button"
+              >
+              <p class="meta">Imagem oficial da impressão</p>
+            </div>
+
+            <div class="listing-detail-copy">
+              <span id="listingDetailMode" class="badge"></span>
+              <h1 id="listingDetailTitle"></h1>
+              <p id="listingDetailCardName" class="lead"></p>
+              <p id="listingDetailMeta" class="meta"></p>
+              <div id="listingDetailPrice" class="price listing-detail-price"></div>
+              <p id="listingDetailDescription" class="description"></p>
+              <p id="listingDetailDate" class="meta"></p>
+            </div>
+          </div>
+
+          <section id="listingPhotoSection" class="listing-photo-section" hidden>
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Fotos reais</p>
+                <h2>Exemplar anunciado</h2>
+              </div>
+              <span id="listingPhotoCount" class="meta"></span>
+            </div>
+            <div id="listingPhotoGallery" class="listing-photo-gallery"></div>
+          </section>
+
+          <section class="seller-card">
+            <div>
+              <p class="eyebrow">Anunciante</p>
+              <h2 id="listingSellerName"></h2>
+              <p id="listingSellerLocation" class="meta"></p>
+            </div>
+
+            <div class="seller-actions">
+              <a id="listingSellerProfile" class="secondary" href="#">Ver perfil</a>
+              <a id="listingSellerPhone" class="secondary" hidden>Telefonar</a>
+              <a
+                id="listingSellerWhatsapp"
+                class="button"
+                target="_blank"
+                rel="noopener noreferrer"
+                hidden
+              >Abrir WhatsApp</a>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <strong>ManaPonte</strong>
+      <span>Negociação direta entre jogadores</span>
+      <span>Dados e imagens oficiais: Scryfall</span>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="page-common.js"></script>
+    <script src="card-preview.js"></script>
+    <script src="listing-detail.js"></script>
+  </body>
+</html>
