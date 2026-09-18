@@ -498,10 +498,24 @@ async function loadData() {
 }
 
 
-// Submeter a busca não recarrega a página; apenas atualiza a vitrine.
+// A busca principal abre a página completa de anúncios já filtrada.
 $("#searchForm").addEventListener("submit", event => {
   event.preventDefault();
-  loadListings();
+
+  const query = new URLSearchParams();
+  Object.entries(filters()).forEach(([key, value]) => {
+    if (value) {
+      query.set(key, value);
+    }
+  });
+
+  // Preserva explicitamente o modo estático quando ele foi solicitado na home.
+  if (queryFlags.has("static")) {
+    query.set("static", "1");
+  }
+
+  const suffix = query.toString();
+  location.href = suffix ? `anuncios.html?${suffix}` : "anuncios.html";
 });
 
 $("#previousListings")?.addEventListener("click", () => {
