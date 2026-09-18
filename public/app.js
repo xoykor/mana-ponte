@@ -429,6 +429,13 @@ function setAuth(data) {
   $("#userBadge").textContent = currentUser
     ? `Olá, ${currentUser.display_name}`
     : "";
+
+  const myProfile = $("#viewMyProfile");
+  if (myProfile) {
+    myProfile.href = currentUser
+      ? `perfil.html?user=${encodeURIComponent(currentUser.id)}`
+      : "perfil.html";
+  }
 }
 
 
