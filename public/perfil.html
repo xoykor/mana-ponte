@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Perfil público de jogador no ManaPonte."
+    >
+    <title>Perfil — ManaPonte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="auth.css">
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
+      <nav>
+        <a href="anuncios.html">Anúncios</a>
+        <a href="index.html#como">Como funciona</a>
+      </nav>
+      <div class="auth-actions">
+        <a class="secondary compact" href="anuncios.html">Ver anúncios</a>
+      </div>
+    </header>
+
+    <main class="standalone-page">
+      <section class="section profile-page-head">
+        <p class="eyebrow">Perfil público</p>
+        <h1 id="profilePageName">Carregando perfil…</h1>
+        <p id="profilePageHandle" class="lead"></p>
+
+        <div class="profile-facts">
+          <div>
+            <span class="meta">Localização</span>
+            <strong id="profilePageLocation">—</strong>
+          </div>
+          <div>
+            <span class="meta">Celular</span>
+            <a id="profilePagePhone" class="phone-link" hidden></a>
+            <span id="profilePageNoPhone" class="status">Não informado</span>
+          </div>
+        </div>
+
+        <p id="profilePageStatus" class="status"></p>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Cartas anunciadas</p>
+            <h2>Anúncios deste jogador</h2>
+          </div>
+          <a class="secondary compact" href="anuncios.html">Todos os anúncios</a>
+        </div>
+
+        <div id="profilePageListings" class="grid"></div>
+      </section>
+    </main>
+
+    <footer>
+      <strong>ManaPonte</strong>
+      <span>Perfil público da comunidade</span>
+      <span>Dados e imagens: Scryfall</span>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="page-common.js"></script>
+    <script src="card-preview.js"></script>
+    <script src="profile-page.js"></script>
+  </body>
+</html>
