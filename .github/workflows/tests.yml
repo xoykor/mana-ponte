@@ -16,11 +16,16 @@ jobs:
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Verificar diff
+        run: git diff --check origin/main...HEAD
 
       - name: Verificar JavaScript
         run: |
