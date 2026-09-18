@@ -213,6 +213,85 @@ class ApiTest(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(owner, 1)
 
+    def test_listing_mode_filter_includes_both_mode(self):
+        """Venda/troca incluem anúncios marcados como ambos."""
+
+        status, sales = self.request("GET", "/api/listings?mode=venda&limit=100")
+        self.assertEqual(status, 200)
+        self.assertTrue(sales["listings"])
+        self.assertTrue(
+            all(item["mode"] in {"venda", "ambos"} for item in sales["listings"])
+        )
+        self.assertIn("ambos", {item["mode"] for item in sales["listings"]})
+
+        status, trades = self.request("GET", "/api/listings?mode=troca&limit=100")
+        self.assertEqual(status, 200)
+        self.assertTrue(trades["listings"])
+        self.assertTrue(
+            all(item["mode"] in {"troca", "ambos"} for item in trades["listings"])
+        )
+        self.assertIn("ambos", {item["mode"] for item in trades["listings"]})
+
+    def test_wants_crud_and_matching(self):
+        """Desejos autenticados são salvos, casados e removidos."""
+
+        self.login_demo()
+
+        # O seed já contém um desejo por Rhystic Study e uma oferta compatível
+        # de outro usuário; o matching sem card_id cruza wants x listings.
+        status, seeded_matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertEqual(seeded_matches["basis"], "wants")
+        self.assertTrue(
+            any(item["wanted_name"] == "Rhystic Study" for item in seeded_matches["matches"])
+        )
+
+        payload = {
+            "card_id": 4,
+            "max_price_cents": 1000,
+            "desired_condition": "NM",
+            "mode": "compra",
+        }
+
+        status, _ = self.request("POST", "/api/wants", payload)
+        self.assertEqual(status, 403)
+
+        status, created = self.request(
+            "POST",
+            "/api/wants",
+            payload,
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+
+        status, wants = self.request("GET", "/api/wants")
+        self.assertEqual(status, 200)
+        saved = next(item for item in wants["wants"] if item["id"] == created["id"])
+        self.assertEqual(saved["name"], "Counterspell")
+        self.assertEqual(saved["max_price_cents"], 1000)
+        self.assertEqual(saved["mode"], "compra")
+
+        status, matches = self.request("GET", "/api/matches")
+        self.assertEqual(status, 200)
+        self.assertTrue(
+            any(
+                item["want_id"] == created["id"]
+                and item["name"] == "Counterspell"
+                and item["mode"] in {"venda", "ambos"}
+                for item in matches["matches"]
+            )
+        )
+
+        status, _ = self.request(
+            "DELETE",
+            f"/api/wants/{created['id']}",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+        status, wants = self.request("GET", "/api/wants")
+        self.assertFalse(any(item["id"] == created["id"] for item in wants["wants"]))
+
     def test_public_routes(self):
         """Rotas públicas respondem sem sessão e servem a página inicial."""
 
