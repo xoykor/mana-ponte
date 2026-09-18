@@ -41,7 +41,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 - `cards` (`data/cards.db`): uma linha por impressão (`scryfall_id`). `oracle_id` permite agrupar reimpressões da mesma carta; coleção, número, idioma e arte distinguem o exemplar anunciado.
 - `users` e `sessions` (`data/accounts.db`): identidade, localização, celular público opcional, hash de senha, estado de verificação e sessões cujo token bruto nunca é persistido.
-- `listings` e `wants` (`data/listings.db`): o que um usuário possui ou procura, com condição, idioma, modalidade e preço opcional.
+- `listings`, `listing_photos` e `wants` (`data/listings.db`): ofertas, referências às fotos reais e cartas procuradas. Desejos podem restringir condição, idioma, modalidade e preço. Os bytes das fotos ficam em `data/uploads/`, fora de `public/`.
 - `schema_version`: base para migrações incrementais em cada arquivo. Como SQLite não aplica chaves estrangeiras entre arquivos anexados, a API valida a existência da carta e a sessão valida a existência do usuário antes de gravar ofertas.
 
 Índices cobrem busca por nome, coleção/idioma, `oracle_id`, localização e relações de ofertas/desejos.
@@ -50,7 +50,7 @@ Este é um monólito modular: uma unidade de implantação, mas fronteiras expl�
 
 ### Busca
 
-1. A interface envia nome, coleção, idioma da impressão, cidade, UF e modalidade.
+1. A interface envia nome, coleção, idioma, cidade, UF, modalidade, condição, faixa de preço e ordenação.
 2. A API monta somente cláusulas permitidas e usa parâmetros SQL.
 3. `cards.db` identifica a impressão; a conexão de `listings.db` anexa `cards.db` e `accounts.db` para unir oferta, usuário e localização.
 4. A resposta retorna URLs de imagem do Scryfall e metadados da oferta.
@@ -63,8 +63,7 @@ consulta enquanto ela está em voo.
 
 `GET /api/listings` usa os mesmos campos de paginação e conta o total depois
 dos filtros. A ordenação por `created_at DESC, id DESC` mantém páginas
-repetíveis enquanto os dados não mudam. Cada anúncio devolve título,
-descrição, idioma e preço. O idioma é lido da impressão em `cards`, que é a fonte de verdade; a coluna legada em `listings` é mantida apenas por compatibilidade. O campo legado `contact_url` continua no contrato por compatibilidade, mas a interface usa o perfil público do jogador como ponto de contato. `mine=1`
+repetíveis enquanto os dados não mudam. A API também oferece ordenação por preço/idade e filtros de faixa de preço/condição. Cada anúncio devolve título, descrição, idioma, preço e contagem de fotos. O idioma é lido da impressão em `cards`, que é a fonte de verdade; a coluna legada em `listings` é mantida apenas por compatibilidade. O campo legado `contact_url` continua no contrato por compatibilidade, mas a interface usa o perfil público do jogador como ponto de contato. `mine=1`
 restringe a consulta ao usuário autenticado. Filtros de venda/troca incluem
 anúncios marcados como `ambos`.
 
@@ -81,7 +80,7 @@ anúncios marcados como `ambos`.
 
 No servidor Python, a interface usa `index.html` como entrada,
 `anuncios.html` como catálogo dedicado de ofertas e
-`perfil.html?user=<id>` como página pública compartilhável do jogador.
+`perfil.html?user=<id>` como página pública compartilhável do jogador e `anuncio.html?id=<id>` como detalhe compartilhável de uma oferta.
 `public/app.js` coordena a tela inicial, enquanto scripts menores atendem as
 páginas independentes. O seletor de impressões envia `q`, `page` e `limit`,
 cancela consultas anteriores e ignora respostas que chegaram depois de uma
@@ -103,9 +102,7 @@ credenciais. O backend só libera CORS para origens configuradas por
 O corpo é limitado a 32 KiB; IDs, enumerações, tamanho de texto e preço são
 validados. A API exige sessão e CSRF, ignora `user_id` enviado pelo cliente e
 deriva a autoria da sessão. Edição e remoção de anúncios usam o mesmo vínculo
-de proprietário. Desejos são criados por usuário e podem limitar modalidade e
-preço. O matching cruza `wants` e `listings` e usa `oracle_id` para aceitar
-reimpressões da mesma carta. Todas as consultas usam parâmetros.
+de proprietário. Desejos são criados por usuário e podem limitar modalidade, preço, condição e idioma. O matching cruza `wants` e `listings`, usa `oracle_id` para aceitar reimpressões da mesma carta e aplica `desired_language` quando definido. Fotos reais são substituídas em bloco, limitadas a quatro por anúncio, validadas por formato/tamanho e só podem ser alteradas pelo proprietário. Todas as consultas usam parâmetros.
 
 ### Cadastro, perfil e sessão
 
@@ -114,7 +111,7 @@ reimpressões da mesma carta. Todas as consultas usam parâmetros.
 3. Cadastro ou login gera token opaco e CSRF independentes. O token bruto existe somente no cookie `HttpOnly`; o banco guarda seu SHA-256.
 4. `/api/auth/me` recupera identidade e CSRF. Logout e comandos mutáveis exigem o cabeçalho CSRF.
 5. Cinco falhas de login por IP e identificador em 15 minutos bloqueiam novas tentativas naquela instância.
-6. A migração v2 moderniza autenticação e sessões; a v3 adiciona o celular opcional sem remover contas existentes. Uma estrutura de sessão antiga pode ser revogada por ser efêmera. Bases antigas de arquivo único continuam aceitas quando um caminho explícito é fornecido.
+6. A migração v2 moderniza autenticação e sessões; a v3 adiciona o celular opcional; a v4 adiciona idioma desejado e fotos de anúncio sem remover dados existentes. Uma estrutura de sessão antiga pode ser revogada por ser efêmera. Bases antigas de arquivo único continuam aceitas quando um caminho explícito é fornecido.
 
 ## Segurança e produção
 
@@ -127,7 +124,7 @@ O protótipo implementa hashing de senha, sessão opaca, cookie `HttpOnly/SameSi
 5. denúncias, reputação e regras contra fraude;
 6. PostgreSQL, migrações formais e rate limiting compartilhado (Redis ou equivalente);
 7. jobs agendados e observáveis para sincronização incremental do Scryfall;
-8. armazenamento de fotos do exemplar do usuário separado da imagem oficial da carta;
+8. em produção, migrar `data/uploads/` para armazenamento de objetos com quotas, antivírus/validação adicional e política de retenção;
 9. caso seja necessário, um job separado e autorizado para preparar cópias locais de imagens; o protótipo não faz coleta em massa.
 
 ## Caminho de evolução
