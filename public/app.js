@@ -83,40 +83,6 @@ function cardLanguage(card) {
 }
 
 
-async function compressListingPhoto(file) {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-    throw new Error("Use fotos JPEG, PNG ou WebP.");
-  }
-
-  const bitmap = await createImageBitmap(file);
-  try {
-    const maxDimension = 1600;
-    const scale = Math.min(
-      1,
-      maxDimension / Math.max(bitmap.width, bitmap.height),
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext("2d");
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-    return canvas.toDataURL("image/jpeg", 0.82);
-  } finally {
-    bitmap.close();
-  }
-}
-
-
-async function prepareListingPhotos(fileList) {
-  const files = [...(fileList || [])];
-  if (files.length > 4) {
-    throw new Error("Selecione no máximo 4 fotos do exemplar.");
-  }
-  return Promise.all(files.map(compressListingPhoto));
-}
-
-
 /**
  * Executa uma requisição que deve retornar JSON.
  *
@@ -607,8 +573,6 @@ function openNewListing() {
   $("#listingModalTitle").textContent = "Anunciar carta";
   $("#listingSubmitButton").textContent = "Publicar oferta";
   $("#formStatus").textContent = "";
-  $("#listingPhotoHint").textContent = "";
-  $("#removeListingPhotosRow").hidden = true;
   cardPicker?.clear();
   modal.showModal();
   cardPicker?.focus();
@@ -637,12 +601,6 @@ function openListingForEdit(item) {
     : (item.price_cents / 100).toFixed(2);
   form.elements.condition.value = item.condition;
   form.elements.mode.value = item.mode;
-  const photoCount = Number(item.photo_count || 0);
-  $("#listingPhotoHint").textContent = photoCount
-    ? `Este anúncio tem ${photoCount} foto(s). Novas fotos substituirão as atuais.`
-    : "Este anúncio ainda não tem fotos reais.";
-  $("#removeListingPhotosRow").hidden = photoCount === 0;
-  form.elements.remove_photos.checked = false;
 
   accountModal.close();
   modal.showModal();
@@ -687,12 +645,6 @@ $("#listingForm").addEventListener("submit", async event => {
     mode: form.mode,
   };
 
-  const selectedPhotoFiles = event.target.elements.photos.files;
-  if (selectedPhotoFiles.length > 4) {
-    $("#formStatus").textContent = "Selecione no máximo 4 fotos.";
-    return;
-  }
-
   try {
     if (STATIC_MODE) {
       // No GitHub Pages não existe banco compartilhado; o anúncio é pessoal
@@ -718,7 +670,7 @@ $("#listingForm").addEventListener("submit", async event => {
       const endpoint = editingListingId
         ? `/api/listings/${editingListingId}`
         : "/api/listings";
-      const saved = await getJson(endpoint, {
+      await getJson(endpoint, {
         method: editingListingId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -726,26 +678,6 @@ $("#listingForm").addEventListener("submit", async event => {
         },
         body: JSON.stringify(payload),
       });
-
-      const listingId = Number(saved.id || editingListingId);
-      const photoFiles = event.target.elements.photos.files;
-      const removePhotos = event.target.elements.remove_photos.checked;
-
-      if (photoFiles.length || removePhotos) {
-        $("#formStatus").textContent = "Preparando fotos…";
-        const photos = photoFiles.length
-          ? await prepareListingPhotos(photoFiles)
-          : [];
-
-        await getJson(`/api/listings/${listingId}/photos`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken,
-          },
-          body: JSON.stringify({ photos }),
-        });
-      }
     }
 
     $("#formStatus").textContent = STATIC_MODE
