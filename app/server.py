@@ -371,6 +371,27 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
+    def allowed_cors_origin(self) -> str | None:
+        """Retorna a origem permitida para uma chamada cross-origin."""
+
+        origin = self.headers.get("Origin", "").strip()
+        configured = {
+            item.strip()
+            for item in os.environ.get("MANAPONTE_ALLOWED_ORIGIN", "").split(",")
+            if item.strip()
+        }
+        return origin if origin and origin in configured else None
+
+    def send_cors_headers(self) -> None:
+        """Emite CORS somente para origens explicitamente configuradas."""
+
+        origin = self.allowed_cors_origin()
+        if not origin:
+            return
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Vary", "Origin")
+
     def send_json(
         self,
         payload,
@@ -397,6 +418,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         for name, value in headers:
             self.send_header(name, value)
 
+        self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -503,11 +525,32 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         secure_values = {"1", "true", "yes"}
         secure = os.environ.get("MANAPONTE_SECURE_COOKIES", "").lower() in secure_values
+        cross_site = (
+            os.environ.get("MANAPONTE_CROSS_SITE_COOKIES", "").lower()
+            in secure_values
+        )
+        if cross_site:
+            secure = True
+        same_site = "None" if cross_site else "Lax"
         cookie = (
             f"mp_session={token}; Path=/; Max-Age={max_age}; "
-            "HttpOnly; SameSite=Lax"
+            f"HttpOnly; SameSite={same_site}"
         )
         return cookie + ("; Secure" if secure else "")
+
+    def do_OPTIONS(self) -> None:
+        """Responde ao preflight usado pelo frontend hospedado em outro domínio."""
+
+        if not urlsplit(self.path).path.startswith("/api/"):
+            return self.send_error(404)
+
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_cors_headers()
+        self.end_headers()
 
     def do_GET(self) -> None:
         """Despacha rotas GET da API ou serve um arquivo estático."""
@@ -571,6 +614,29 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             return self.send_json({"error": str(error)}, 400)
 
+    def do_PATCH(self) -> None:
+        """Atualiza perfil ou anúncio pertencente ao usuário autenticado."""
+
+        path = urlsplit(self.path).path
+        try:
+            data = self.read_json()
+            if path == "/api/profile":
+                return self.update_profile(data)
+            if path.startswith("/api/listings/"):
+                listing_id = path.removeprefix("/api/listings/")
+                if not listing_id or "/" in listing_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.update_listing(int(listing_id), data)
+
+            return self.send_json({"error": "Rota não encontrada"}, 404)
+        except OverflowError as error:
+            return self.send_json(
+                {"error": str(error)},
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+        except (json.JSONDecodeError, ValueError, TypeError) as error:
+            return self.send_json({"error": str(error)}, 400)
+
     def do_DELETE(self) -> None:
         """Remove recursos mutáveis pertencentes ao usuário autenticado."""
 
@@ -581,6 +647,11 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 if not want_id or "/" in want_id:
                     raise ValueError("ID de desejo inválido")
                 return self.delete_want(int(want_id))
+            if path.startswith("/api/listings/"):
+                listing_id = path.removeprefix("/api/listings/")
+                if not listing_id or "/" in listing_id:
+                    raise ValueError("ID de anúncio inválido")
+                return self.delete_listing(int(listing_id))
 
             return self.send_json({"error": "Rota não encontrada"}, 404)
         except (ValueError, TypeError) as error:
@@ -752,6 +823,45 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             (("Set-Cookie", self.session_cookie("", 0)),),
         )
 
+    def update_profile(self, data: dict) -> None:
+        """Atualiza os dados públicos básicos do usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Não autenticado"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        display_name = str(
+            data.get("display_name", session["display_name"])
+        ).strip()
+        city = str(data.get("city", session["city"])).strip()
+        state = str(data.get("state", session["state"])).strip().upper()
+
+        if (
+            not 2 <= len(display_name) <= 80
+            or not 2 <= len(city) <= 80
+            or state not in BRAZIL_STATES
+        ):
+            raise ValueError("Nome, cidade ou UF inválidos")
+
+        connection = self.account_connection()
+        try:
+            connection.execute(
+                """
+                UPDATE users
+                SET display_name = ?, city = ?, state = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (display_name, city, state, session["user_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        refreshed = get_session(self.session_token(), self.accounts_path())
+        return self.send_json(self.auth_payload(refreshed))
+
     def get_cards(self) -> None:
         """Busca impressões locais e enriquece a busca pelo Scryfall.
 
@@ -880,6 +990,17 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 clauses.append(sql)
                 values.append(converter(query_params[key]))
 
+        mine = query_params.get("mine", "").strip().lower()
+        if mine in {"1", "true", "yes"}:
+            session = self.current_session()
+            if not session:
+                return self.send_json(
+                    {"error": "Faça login para ver seus anúncios"},
+                    401,
+                )
+            clauses.append("l.user_id = ?")
+            values.append(session["user_id"])
+
         requested_mode = query_params.get("mode", "").strip()
         if requested_mode:
             if requested_mode == "venda":
@@ -920,6 +1041,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                 SELECT
                     l.id,
                     l.card_id,
+                    l.user_id,
                     c.name,
                     c.set_code,
                     c.set_name,
@@ -1307,6 +1429,114 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             {"id": listing_id, "message": "Anúncio criado"},
             201,
         )
+
+    def update_listing(self, listing_id: int, data: dict) -> None:
+        """Edita somente um anúncio pertencente ao usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para editar anúncios"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        connection = self.listings_connection()
+        try:
+            current = connection.execute(
+                "SELECT * FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            ).fetchone()
+            if not current:
+                return self.send_json({"error": "Anúncio não encontrado"}, 404)
+
+            card_id = int(data.get("card_id", current["card_id"]))
+            title = str(data.get("title", current["title"])).strip()
+            description = str(
+                data.get("description", current["description"])
+            ).strip()
+            condition = data.get("condition", current["condition"])
+            mode = data.get("mode", current["mode"])
+
+            if not 3 <= len(title) <= 120 or len(description) > 1000:
+                raise ValueError(
+                    "Título deve ter 3–120 caracteres e descrição no máximo 1000"
+                )
+            if condition not in {"NM", "SP", "MP", "HP", "DMG"}:
+                raise ValueError("Condição ou modalidade inválida")
+            if mode not in {"venda", "troca", "ambos"}:
+                raise ValueError("Condição ou modalidade inválida")
+
+            raw_price = data.get("price_cents", current["price_cents"])
+            price_cents = None if raw_price in (None, "") else int(raw_price)
+            if price_cents is not None and price_cents < 0:
+                raise ValueError("Preço não pode ser negativo")
+
+            raw_contact = data.get("contact_url", current["contact_url"] or "")
+            contact_url = "" if raw_contact is None else raw_contact
+            if not valid_contact_url(contact_url):
+                raise ValueError(
+                    "URL de contato deve ser vazia ou usar http(s) com host válido"
+                )
+            contact_url = contact_url.strip()
+            if len(contact_url) > 300:
+                raise ValueError("URL de contato deve ter no máximo 300 caracteres")
+
+            cards_table = self.cards_table()
+            card_exists = connection.execute(
+                f"SELECT 1 FROM {cards_table} WHERE id = ?",
+                (card_id,),
+            ).fetchone()
+            if not card_exists:
+                raise ValueError("Carta não encontrada")
+
+            language = str(data.get("language", current["language"]))[:8]
+            connection.execute(
+                """
+                UPDATE listings
+                SET card_id = ?, title = ?, description = ?, price_cents = ?,
+                    condition = ?, language = ?, mode = ?, contact_url = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (
+                    card_id,
+                    title,
+                    description,
+                    price_cents,
+                    condition,
+                    language,
+                    mode,
+                    contact_url,
+                    listing_id,
+                    session["user_id"],
+                ),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        return self.send_json({"id": listing_id, "message": "Anúncio atualizado"})
+
+    def delete_listing(self, listing_id: int) -> None:
+        """Remove somente um anúncio pertencente ao usuário autenticado."""
+
+        session = self.current_session()
+        if not session:
+            return self.send_json({"error": "Faça login para remover anúncios"}, 401)
+        if not csrf_matches(session, self.headers.get("X-CSRF-Token")):
+            return self.send_json({"error": "Token CSRF inválido"}, 403)
+
+        connection = self.listings_connection()
+        try:
+            cursor = connection.execute(
+                "DELETE FROM listings WHERE id = ? AND user_id = ?",
+                (listing_id, session["user_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        if cursor.rowcount == 0:
+            return self.send_json({"error": "Anúncio não encontrado"}, 404)
+        return self.send_json({"message": "Anúncio removido"})
 
     def serve_static(self, path: str) -> None:
         """Serve um arquivo de ``public/`` sem permitir sair do diretório."""
