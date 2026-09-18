@@ -784,27 +784,85 @@ function renderMatches(matches) {
     return;
   }
 
-  $("#matchesList").innerHTML = entries.map(item => {
-    const contact = safeContactUrl(item.contact_url);
-    const contactMarkup = contact
-      ? `<a class="contact" href="${esc(contact)}" target="_blank" rel="noopener noreferrer">Contato</a>`
-      : "";
-    return `
-      <article class="account-item">
-        <img src="${esc(item.image_url)}" alt="">
-        <div>
-          <h4>${esc(item.wanted_name || item.name)}</h4>
-          <p class="meta">
-            ${esc(item.title || "Oferta compatível")}
-            · ${esc(item.city)} / ${esc(item.state)}
-            · ${money(item.price_cents)}
-          </p>
-        </div>
-        <div class="inline-actions">${contactMarkup}</div>
-      </article>
-    `;
-  }).join("");
+  $("#matchesList").innerHTML = entries.map(item => `
+    <button
+      class="account-item account-item-button"
+      type="button"
+      data-profile-user="${item.user_id}"
+      aria-label="Abrir perfil de ${esc(item.display_name)}"
+    >
+      <img src="${esc(item.image_url)}" alt="">
+      <div>
+        <h4>${esc(item.wanted_name || item.name)}</h4>
+        <p class="meta">
+          ${esc(item.title || "Oferta compatível")}
+          · ${esc(item.display_name)}
+          · ${esc(item.city)} / ${esc(item.state)}
+          · ${money(item.price_cents)}
+        </p>
+      </div>
+      <span class="profile-chevron" aria-hidden="true">›</span>
+    </button>
+  `).join("");
+
+  $("#matchesList").querySelectorAll("[data-profile-user]").forEach(button => {
+    button.onclick = () => {
+      accountModal.close();
+      openPublicProfile(Number(button.dataset.profileUser));
+    };
+  });
 }
+
+
+function renderPublicProfileListings(listings) {
+  const entries = Array.isArray(listings) ? listings : [];
+  if (!entries.length) {
+    $("#publicProfileListings").innerHTML =
+      '<p class="empty-state">Este jogador não tem anúncios ativos.</p>';
+    return;
+  }
+
+  $("#publicProfileListings").innerHTML = entries.map(item => `
+    <article class="account-item">
+      <img src="${esc(item.image_url)}" alt="">
+      <div>
+        <h4>${esc(item.title || item.name)}</h4>
+        <p class="meta">
+          ${esc(item.name)}
+          · ${esc(String(item.set_code || "").toUpperCase())}
+          · ${esc(item.condition)}
+          · ${money(item.price_cents)}
+        </p>
+      </div>
+      <span class="badge">${esc(item.mode)}</span>
+    </article>
+  `).join("");
+}
+
+
+async function openPublicProfile(userId) {
+  if (!Number.isInteger(userId) || userId <= 0 || STATIC_MODE) {
+    return;
+  }
+
+  $("#publicProfileName").textContent = "Carregando…";
+  $("#publicProfileLocation").textContent = "";
+  $("#publicProfileListings").innerHTML = "";
+  $("#publicProfileStatus").textContent = "";
+  publicProfileModal.showModal();
+
+  try {
+    const data = await getJson(`/api/users/${userId}`);
+    $("#publicProfileName").textContent = data.user.display_name;
+    $("#publicProfileLocation").textContent =
+      `@${data.user.username} · ${data.user.city} / ${data.user.state}`;
+    renderPublicProfileListings(data.listings);
+  } catch (error) {
+    $("#publicProfileStatus").textContent = error.message;
+  }
+}
+
+$("#closePublicProfile").onclick = () => publicProfileModal.close();
 
 async function loadAccountData() {
   if (!currentUser || STATIC_MODE) {
