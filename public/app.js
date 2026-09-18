@@ -203,18 +203,25 @@ function renderListings(listings, pagination = {}) {
       ? `<p class="description">${esc(description)}</p>`
       : "";
     const profileMarkup = !STATIC_MODE && item.user_id
-      ? `<button
+      ? `<a
           class="secondary compact profile-link"
-          type="button"
-          data-profile-user="${item.user_id}"
-        >Ver perfil</button>`
+          href="perfil.html?user=${encodeURIComponent(item.user_id)}"
+        >Ver perfil</a>`
       : "";
     const setCode = String(item.set_code ?? "").toUpperCase();
     const language = String(item.language || "en").toUpperCase();
 
     return `
       <article class="listing">
-        <img loading="lazy" src="${esc(item.image_url)}" alt="${esc(name)}">
+        <img
+          loading="lazy"
+          src="${esc(item.image_url)}"
+          alt="${esc(name)}"
+          data-card-image
+          data-card-label="${esc(name)}"
+          tabindex="0"
+          role="button"
+        >
         <div>
           <span class="badge">${esc(item.mode)}</span>
           <h3>${esc(heading)}</h3>
@@ -236,9 +243,6 @@ function renderListings(listings, pagination = {}) {
     `;
   }).join("");
 
-  $("#listings").querySelectorAll("[data-profile-user]").forEach(button => {
-    button.onclick = () => openPublicProfile(Number(button.dataset.profileUser));
-  });
 }
 
 
@@ -527,7 +531,6 @@ const modal = $("#modal");
 const authModal = $("#authModal");
 const accountModal = $("#accountModal");
 const wantModal = $("#wantModal");
-const publicProfileModal = $("#publicProfileModal");
 
 
 /**
@@ -687,7 +690,14 @@ function renderAccountListings(listings) {
 
   $("#myListings").innerHTML = entries.map(item => `
     <article class="account-item">
-      <img src="${esc(item.image_url)}" alt="">
+      <img
+        src="${esc(item.image_url)}"
+        alt="${esc(item.name)}"
+        data-card-image
+        data-card-label="${esc(item.name)}"
+        tabindex="0"
+        role="button"
+      >
       <div>
         <h4>${esc(item.title || item.name)}</h4>
         <p class="meta">
@@ -744,7 +754,14 @@ function renderWants(wants) {
 
   $("#wantsList").innerHTML = entries.map(item => `
     <article class="account-item">
-      <img src="${esc(item.image_url)}" alt="">
+      <img
+        src="${esc(item.image_url)}"
+        alt="${esc(item.name || item.wanted_name || "Carta")}"
+        data-card-image
+        data-card-label="${esc(item.name || item.wanted_name || "Carta")}"
+        tabindex="0"
+        role="button"
+      >
       <div>
         <h4>${esc(item.name)}</h4>
         <p class="meta">
@@ -785,13 +802,19 @@ function renderMatches(matches) {
   }
 
   $("#matchesList").innerHTML = entries.map(item => `
-    <button
+    <a
       class="account-item account-item-button"
-      type="button"
-      data-profile-user="${item.user_id}"
+      href="perfil.html?user=${encodeURIComponent(item.user_id)}"
       aria-label="Abrir perfil de ${esc(item.display_name)}"
     >
-      <img src="${esc(item.image_url)}" alt="">
+      <img
+        src="${esc(item.image_url)}"
+        alt="${esc(item.name || item.wanted_name || "Carta")}"
+        data-card-image
+        data-card-label="${esc(item.name || item.wanted_name || "Carta")}"
+        tabindex="0"
+        role="button"
+      >
       <div>
         <h4>${esc(item.wanted_name || item.name)}</h4>
         <p class="meta">
@@ -802,67 +825,12 @@ function renderMatches(matches) {
         </p>
       </div>
       <span class="profile-chevron" aria-hidden="true">›</span>
-    </button>
-  `).join("");
-
-  $("#matchesList").querySelectorAll("[data-profile-user]").forEach(button => {
-    button.onclick = () => {
-      accountModal.close();
-      openPublicProfile(Number(button.dataset.profileUser));
-    };
-  });
-}
-
-
-function renderPublicProfileListings(listings) {
-  const entries = Array.isArray(listings) ? listings : [];
-  if (!entries.length) {
-    $("#publicProfileListings").innerHTML =
-      '<p class="empty-state">Este jogador não tem anúncios ativos.</p>';
-    return;
-  }
-
-  $("#publicProfileListings").innerHTML = entries.map(item => `
-    <article class="account-item">
-      <img src="${esc(item.image_url)}" alt="">
-      <div>
-        <h4>${esc(item.title || item.name)}</h4>
-        <p class="meta">
-          ${esc(item.name)}
-          · ${esc(String(item.set_code || "").toUpperCase())}
-          · ${esc(item.condition)}
-          · ${money(item.price_cents)}
-        </p>
-      </div>
-      <span class="badge">${esc(item.mode)}</span>
-    </article>
+    </a>
   `).join("");
 }
 
 
-async function openPublicProfile(userId) {
-  if (!Number.isInteger(userId) || userId <= 0 || STATIC_MODE) {
-    return;
-  }
 
-  $("#publicProfileName").textContent = "Carregando…";
-  $("#publicProfileLocation").textContent = "";
-  $("#publicProfileListings").innerHTML = "";
-  $("#publicProfileStatus").textContent = "";
-  publicProfileModal.showModal();
-
-  try {
-    const data = await getJson(`/api/users/${userId}`);
-    $("#publicProfileName").textContent = data.user.display_name;
-    $("#publicProfileLocation").textContent =
-      `@${data.user.username} · ${data.user.city} / ${data.user.state}`;
-    renderPublicProfileListings(data.listings);
-  } catch (error) {
-    $("#publicProfileStatus").textContent = error.message;
-  }
-}
-
-$("#closePublicProfile").onclick = () => publicProfileModal.close();
 
 async function loadAccountData() {
   if (!currentUser || STATIC_MODE) {
@@ -893,6 +861,7 @@ $("#accountButton").onclick = async () => {
 
   const form = $("#profileForm");
   form.elements.display_name.value = currentUser.display_name || "";
+  form.elements.phone.value = currentUser.phone || "";
   form.elements.city.value = currentUser.city || "";
   form.elements.state.value = currentUser.state || "";
   $("#profileStatus").textContent = "";
