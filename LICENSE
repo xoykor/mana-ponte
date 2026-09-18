@@ -1,45 +1,100 @@
-ManaPonte — License Notice
+ManaPonte Proprietary License
 
 Copyright (c) 2026 xoykor
+All Rights Reserved.
 
-Required Notice: Copyright (c) 2026 xoykor.
+1. Ownership
 
-Except for the third-party materials described below, the original ManaPonte
-software and project documentation are licensed under the PolyForm
-Noncommercial License 1.0.0:
+The original ManaPonte source code, documentation, database structure,
+database organization, indexing logic, import tools, APIs, scripts, user
+interface, and other original project materials are protected by copyright
+and other applicable laws and remain the exclusive property of their
+respective ManaPonte copyright holder(s), except where expressly identified
+as third-party material.
 
-https://polyformproject.org/licenses/noncommercial/1.0.0/
+2. No License Granted
 
-Commercial use is not granted under these terms. Any commercial use of the
-original ManaPonte software requires a separate commercial license from the
-ManaPonte copyright holder.
+Except where the copyright holder gives prior express written permission,
+no license or permission is granted to any person or entity to:
 
-THIRD-PARTY MATERIALS
+- reproduce or copy the Software or any substantial part of it;
+- distribute, publish, republish, transmit, upload, mirror, sublicense,
+  sell, rent, lease, lend, or otherwise make the Software available;
+- modify, adapt, translate, port, reverse engineer, or create derivative
+  works based on the Software;
+- host, deploy, operate, or provide the Software or a modified version of it
+  for the benefit of third parties;
+- incorporate the Software into another product, service, website,
+  application, dataset, or repository;
+- use the Software for commercial or non-commercial purposes;
+- reproduce or redistribute the organization, selection, structure, or
+  compilation of a ManaPonte database to the extent protected by applicable
+  law.
 
-This license does not apply to third-party material included, referenced,
-displayed, indexed, downloaded, cached, or otherwise used by ManaPonte.
+These restrictions apply regardless of whether the intended use is
+commercial, educational, personal, charitable, research-oriented, or
+otherwise non-commercial.
 
-Excluded material includes, without limitation:
+3. Authorized Access and Contributions
+
+Access to the source code does not itself grant any right to reproduce,
+modify, distribute, publish, or use it.
+
+A person who has been expressly authorized by the copyright holder to
+contribute to ManaPonte may make only those temporary or working copies and
+modifications reasonably necessary for the authorized contribution, and only
+within the scope of that authorization.
+
+Any broader use requires separate prior written permission from the copyright
+holder.
+
+4. Third-Party Materials
+
+This license applies only to material for which the ManaPonte copyright
+holder has the legal authority to grant or withhold rights.
+
+It does not claim ownership of, and does not grant or withhold rights in,
+third-party material, including without limitation:
 
 - Magic: The Gathering card images and artwork;
-- card frames, symbols, logos, trademarks, names, and other brand material;
-- card text and other content owned by Wizards of the Coast or other rightsholders;
+- card frames, symbols, logos, trademarks, names, and card text;
+- material owned by Wizards of the Coast or other rightsholders;
 - images, metadata, or other material obtained through Scryfall or other
-  third-party services, except to the extent that ManaPonte itself owns rights
-  in a particular element;
-- user-supplied material for which ManaPonte does not own the copyright.
+  third-party services;
+- user-supplied material owned by third parties.
 
-No copyright, trademark, database, publicity, or other intellectual-property
-rights in those third-party materials are granted by this license.
+Rights in such material remain governed by their respective owners, licenses,
+terms, policies, and applicable law.
 
-The presence of third-party material in a ManaPonte repository, database,
-cache, distribution, or deployment does not mean that ManaPonte owns that
-material or has authority to relicense it.
+See THIRD_PARTY_NOTICES.md for additional information.
 
-For additional information, see THIRD_PARTY_NOTICES.md.
+5. Platform-Required Rights
 
-NO WARRANTY
+Nothing in this license is intended to revoke or contradict rights that the
+copyright holder must grant to a hosting platform solely as necessary for that
+platform to provide its service under terms accepted by the copyright holder.
 
-To the extent permitted by applicable law, ManaPonte is provided without
-warranty. The warranty and liability provisions of the PolyForm Noncommercial
-License 1.0.0 apply to the original ManaPonte software covered by that license.
+No additional rights are granted beyond those strictly required by the
+applicable platform terms.
+
+6. Statutory Exceptions
+
+Nothing in this license is intended to restrict rights that cannot lawfully be
+waived or prohibited under applicable law.
+
+7. No Warranty
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED
+"AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+TITLE, AND NON-INFRINGEMENT.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OF OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. Permissions
+
+Any permission, commercial license, redistribution authorization, hosting
+authorization, or other exception to these terms must be granted separately
+and expressly by the ManaPonte copyright holder in writing.
