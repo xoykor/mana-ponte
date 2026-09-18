@@ -1326,6 +1326,15 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             if not user:
                 return self.send_json({"error": "Usuário não encontrado"}, 404)
 
+            listing_count = connection.execute(
+                "SELECT COUNT(*) FROM listings WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0]
+            want_count = connection.execute(
+                "SELECT COUNT(*) FROM wants WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0]
+
             listings = rows(
                 connection.execute(
                     f"""
@@ -1390,8 +1399,8 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             {
                 "user": dict(user),
                 "stats": {
-                    "listing_count": len(listings),
-                    "want_count": len(wants),
+                    "listing_count": listing_count,
+                    "want_count": want_count,
                 },
                 "listings": listings,
                 "wants": wants,
