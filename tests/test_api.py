@@ -213,6 +213,140 @@ class ApiTest(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(owner, 1)
 
+    def test_profile_update_requires_csrf_and_refreshes_session(self):
+        """Perfil autenticado atualiza nome e localização da sessão."""
+
+        self.login_demo()
+
+        status, _ = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
+        )
+        self.assertEqual(status, 403)
+
+        status, data = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Atualizado", "city": "Parnamirim", "state": "RN"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(data["user"]["display_name"], "Danton Atualizado")
+        self.assertEqual(data["user"]["city"], "Parnamirim")
+
+        status, me = self.request("GET", "/api/auth/me")
+        self.assertEqual(status, 200)
+        self.assertEqual(me["user"]["city"], "Parnamirim")
+
+        # Restaura o fixture para os testes seguintes não dependerem da ordem.
+        status, _ = self.request(
+            "PATCH",
+            "/api/profile",
+            {"display_name": "Danton Homero", "city": "Natal", "state": "RN"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+    def test_owner_can_list_edit_and_delete_own_listing(self):
+        """mine=1, PATCH e DELETE respeitam o proprietário do anúncio."""
+
+        self.login_demo()
+        status, created = self.request(
+            "POST",
+            "/api/listings",
+            {
+                "card_id": 3,
+                "title": "Bolt editável",
+                "description": "Antes",
+                "condition": "SP",
+                "mode": "venda",
+                "price_cents": 1200,
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 201)
+        listing_id = created["id"]
+
+        status, mine = self.request("GET", "/api/listings?mine=1&limit=100")
+        self.assertEqual(status, 200)
+        self.assertIn(listing_id, {item["id"] for item in mine["listings"]})
+        self.assertTrue(
+            all(item["user_id"] == 1 for item in mine["listings"])
+        )
+
+        status, _ = self.request(
+            "PATCH",
+            f"/api/listings/{listing_id}",
+            {
+                "title": "Bolt atualizado",
+                "description": "Depois",
+                "price_cents": 1000,
+                "mode": "ambos",
+            },
+        )
+        self.assertEqual(status, 403)
+
+        status, updated = self.request(
+            "PATCH",
+            f"/api/listings/{listing_id}",
+            {
+                "title": "Bolt atualizado",
+                "description": "Depois",
+                "price_cents": 1000,
+                "mode": "ambos",
+            },
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["id"], listing_id)
+
+        status, listing_payload = self.request(
+            "GET",
+            f"/api/listings?card_id=3&limit=100",
+        )
+        edited = next(
+            item for item in listing_payload["listings"]
+            if item["id"] == listing_id
+        )
+        self.assertEqual(edited["title"], "Bolt atualizado")
+        self.assertEqual(edited["description"], "Depois")
+        self.assertEqual(edited["price_cents"], 1000)
+        self.assertEqual(edited["mode"], "ambos")
+
+        status, _ = self.request(
+            "DELETE",
+            f"/api/listings/{listing_id}",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 200)
+
+        status, mine = self.request("GET", "/api/listings?mine=1&limit=100")
+        self.assertNotIn(listing_id, {item["id"] for item in mine["listings"]})
+
+    def test_user_cannot_edit_or_delete_another_users_listing(self):
+        """Rotas mutáveis não revelam nem alteram anúncio de outro usuário."""
+
+        self.login_demo()
+
+        # O fixture 2 pertence a Marina, não ao usuário danton.
+        status, payload = self.request(
+            "PATCH",
+            "/api/listings/2",
+            {"title": "Tentativa indevida"},
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "Anúncio não encontrado")
+
+        status, payload = self.request(
+            "DELETE",
+            "/api/listings/2",
+            csrf=self.csrf,
+        )
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "Anúncio não encontrado")
+
     def test_listing_mode_filter_includes_both_mode(self):
         """Venda/troca incluem anúncios marcados como ambos."""
 
