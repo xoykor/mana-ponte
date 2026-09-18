@@ -78,6 +78,10 @@
       city: $("#listingCity").value.trim(),
       state: $("#listingState").value,
       mode: $("#listingMode").value,
+      condition: $("#listingCondition").value,
+      min_price: $("#listingMinPrice").value,
+      max_price: $("#listingMaxPrice").value,
+      sort: $("#listingSort").value || "recent",
     };
   }
 
@@ -108,6 +112,19 @@
         .some(option => option.value === requestedLanguage)
     ) {
       $("#listingLanguage").value = requestedLanguage;
+    }
+
+    const condition = params.get("condition") || "";
+    if (["", "NM", "SP", "MP", "HP", "DMG"].includes(condition)) {
+      $("#listingCondition").value = condition;
+    }
+
+    $("#listingMinPrice").value = params.get("min_price") || "";
+    $("#listingMaxPrice").value = params.get("max_price") || "";
+
+    const sort = params.get("sort") || "recent";
+    if (["recent", "oldest", "price_asc", "price_desc"].includes(sort)) {
+      $("#listingSort").value = sort;
     }
   }
 
@@ -170,12 +187,13 @@
           >
           <div>
             <span class="badge">${esc(item.mode)}</span>
-            <h3>${esc(item.title || name)}</h3>
+            <h3><a class="listing-title-link" href="anuncio.html?id=${encodeURIComponent(item.id)}">${esc(item.title || name)}</a></h3>
             <p class="card-name">${esc(name)}</p>
             <div class="meta">
               ${esc(String(item.set_code || "").toUpperCase())}
               · ${esc(item.condition)}
               · ${esc(String(item.language || "en").toUpperCase())}
+              ${Number(item.photo_count || 0) ? ` · ${Number(item.photo_count)} foto(s)` : ""}
             </div>
             <div class="price">${money(item.price_cents)}</div>
             ${item.description ? `<p class="description">${esc(item.description)}</p>` : ""}
@@ -207,13 +225,34 @@
             String(item.city || "").toLocaleLowerCase() ===
               filters.city.toLocaleLowerCase()) &&
           (!filters.state || item.state === filters.state) &&
+          (!filters.condition || item.condition === filters.condition) &&
+          (!filters.min_price ||
+            (item.price_cents != null &&
+              item.price_cents >= Math.round(Number(filters.min_price) * 100))) &&
+          (!filters.max_price ||
+            (item.price_cents != null &&
+              item.price_cents <= Math.round(Number(filters.max_price) * 100))) &&
           listingModeMatches(item.mode, filters.mode)
         );
 
-        render(filtered, {
-          total: filtered.length,
+        const sorted = [...filtered].sort((a, b) => {
+          if (filters.sort === "price_asc" || filters.sort === "price_desc") {
+            const aPrice = a.price_cents == null ? Infinity : a.price_cents;
+            const bPrice = b.price_cents == null ? Infinity : b.price_cents;
+            return filters.sort === "price_asc"
+              ? aPrice - bPrice
+              : (bPrice === Infinity ? -1 : aPrice === Infinity ? 1 : bPrice - aPrice);
+          }
+
+          const aTime = Date.parse(a.created_at || 0) || 0;
+          const bTime = Date.parse(b.created_at || 0) || 0;
+          return filters.sort === "oldest" ? aTime - bTime : bTime - aTime;
+        });
+
+        render(sorted, {
+          total: sorted.length,
           page: 1,
-          limit: Math.max(filtered.length, PAGE_SIZE),
+          limit: Math.max(sorted.length, PAGE_SIZE),
         });
         return;
       }
@@ -258,6 +297,13 @@
 
   $("#listingFilters").addEventListener("submit", event => {
     event.preventDefault();
+    syncUrlWithFilters();
+    load(1);
+  });
+
+  $("#listingClear").addEventListener("click", () => {
+    $("#listingFilters").reset();
+    $("#listingSort").value = "recent";
     syncUrlWithFilters();
     load(1);
   });
