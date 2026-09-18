@@ -547,15 +547,15 @@ $("#nextListings")?.addEventListener("click", () => {
   }
 });
 
-// Os chips alteram o filtro de modalidade e destacam o botão ativo.
-document.querySelectorAll(".chip").forEach(button => {
+// Somente os chips da vitrine alteram o filtro de modalidade.
+document.querySelectorAll(".chips .chip[data-mode]").forEach(button => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".chip").forEach(item => {
+    document.querySelectorAll(".chips .chip[data-mode]").forEach(item => {
       item.classList.remove("active");
     });
 
     button.classList.add("active");
-    mode = button.dataset.mode;
+    mode = button.dataset.mode || "";
     loadListings();
   });
 });
