@@ -436,19 +436,62 @@ dialog form {
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--ink);
-  text-align: left;
-  cursor: pointer;
 }
 
 .card-picker-result:hover,
-.card-picker-result:focus {
+.card-picker-result:focus-within {
   background: #142019;
   border-color: var(--green);
 }
 
-.card-picker-result strong,
-.card-picker-result small {
+.card-picker-select,
+.card-picker-zoom {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.card-picker-select {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.card-picker-select strong,
+.card-picker-select small {
   display: block;
+}
+
+.card-picker-zoom {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.card-picker-zoom::after {
+  content: "⌕";
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: var(--green);
+  border: 2px solid #0c1210;
+  border-radius: 50%;
+  color: #14200f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.card-picker-zoom:disabled {
+  cursor: default;
+}
+
+.card-picker-zoom:disabled::after {
+  display: none;
 }
 
 .card-picker-result small,
@@ -517,6 +560,53 @@ dialog form {
 .card-picker-more:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+.card-preview-dialog {
+  width: min(430px, calc(100% - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: visible;
+  background: transparent;
+  border: 0;
+}
+
+.card-preview-shell {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 10px;
+}
+
+.card-preview-shell img {
+  display: block;
+  width: min(100%, 380px);
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: 0 22px 80px #000c;
+}
+
+.card-preview-shell p {
+  margin: 0;
+  padding: 6px 10px;
+  background: #0a0e0ddd;
+  border-radius: 10px;
+  color: var(--ink);
+  text-align: center;
+}
+
+.card-preview-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  background: #0a0e0ddd;
+  border-radius: 50%;
 }
 
 
