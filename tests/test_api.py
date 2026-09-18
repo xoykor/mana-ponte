@@ -473,6 +473,67 @@ class ApiTest(unittest.TestCase):
             csrf=self.csrf,
         )
 
+    def test_cors_preflight_allows_only_configured_origin(self):
+        """Frontend externo recebe CORS apenas para a origem autorizada."""
+
+        allowed = "https://xoykor.github.io"
+        with patch.dict(
+            "os.environ",
+            {"MANAPONTE_ALLOWED_ORIGIN": allowed},
+            clear=False,
+        ):
+            connection = http.client.HTTPConnection(
+                "127.0.0.1",
+                self.port,
+                timeout=4,
+            )
+            connection.request(
+                "OPTIONS",
+                "/api/auth/login",
+                headers={
+                    "Origin": allowed,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "Content-Type",
+                },
+            )
+            response = connection.getresponse()
+            response.read()
+            self.assertEqual(response.status, 204)
+            self.assertEqual(
+                response.getheader("Access-Control-Allow-Origin"),
+                allowed,
+            )
+            self.assertEqual(
+                response.getheader("Access-Control-Allow-Credentials"),
+                "true",
+            )
+            self.assertIn(
+                "PATCH",
+                response.getheader("Access-Control-Allow-Methods"),
+            )
+            connection.close()
+
+            connection = http.client.HTTPConnection(
+                "127.0.0.1",
+                self.port,
+                timeout=4,
+            )
+            connection.request(
+                "OPTIONS",
+                "/api/auth/login",
+                headers={
+                    "Origin": "https://evil.example",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+            response = connection.getresponse()
+            response.read()
+            self.assertEqual(response.status, 204)
+            self.assertIsNone(
+                response.getheader("Access-Control-Allow-Origin")
+            )
+            connection.close()
+
     def test_public_routes(self):
         """Rotas públicas respondem sem sessão e servem a página inicial."""
 
