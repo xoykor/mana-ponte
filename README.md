@@ -1,6 +1,17 @@
 # ManaPonte
 
-Protótipo funcional de uma vitrine comunitária brasileira para jogadores de Magic: The Gathering encontrarem quem possui — ou procura — uma impressão específica. A negociação acontece diretamente entre jogadores; o produto não intermedeia pagamentos no MVP.
+ManaPonte é uma vitrine comunitária brasileira para jogadores de **Magic: The Gathering** encontrarem quem possui — ou procura — uma impressão específica. O projeto combina catálogo, perfis, anúncios, desejos e matching, mantendo a negociação diretamente entre jogadores e sem intermediar pagamentos no MVP.
+
+## Estado do projeto
+
+- frontend estático preparado para GitHub Pages;
+- modo de demonstração com JSON e `localStorage` quando não há API;
+- backend opcional para cadastro, sessão, perfis, anúncios, desejos e matches;
+- catálogo baseado em impressões reais e integração com dados/imagens do Scryfall;
+- busca com filtros, autocomplete e páginas próprias para perfil e anúncio;
+- arquitetura preparada para separar frontend estático e API hospedada externamente.
+
+> O repositório é **source-available**, não open source. Consulte a seção de licença antes de reutilizar ou implantar o código.
 
 ## Frontend e GitHub Pages
 
@@ -163,3 +174,10 @@ caminho explicitamente ou definir essa variável sem as variáveis específicas.
 - o GitHub Pages não hospeda o backend: persistência compartilhada exige uma API HTTPS separada, embora o frontend já suporte essa configuração via `public/config.js`.
 
 Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.
+
+
+## Licença
+
+O código original do ManaPonte é disponibilizado sob a **ManaPonte Proprietary Source-Available License**. A publicação do código permite inspeção, discussão e contribuição ao projeto oficial, mas não concede permissão geral para copiar, redistribuir, hospedar, operar, modificar ou criar produtos derivados.
+
+Materiais de terceiros — incluindo imagens, nomes, símbolos, textos e propriedades relacionadas a Magic: The Gathering e Scryfall — permanecem sujeitos aos direitos e termos de seus respectivos titulares. Consulte [LICENSE](LICENSE) e [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
