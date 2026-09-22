@@ -1,5 +1,56 @@
 # Arquitetura do ManaPonte
 
+## Mapa da documentação técnica
+
+Este arquivo mantém a visão de alto nível. Os contratos detalhados, revisados contra o código atual, estão separados para facilitar manutenção:
+
+- [API e HTTP](docs/API.md)
+- [Modelo de dados e persistência](docs/DATA_MODEL.md)
+- [Frontend](docs/FRONTEND.md)
+- [Operação, configuração e deploy](docs/OPERATIONS.md)
+- [Testes e contratos verificados](docs/TESTING.md)
+
+A regra de manutenção é: comportamento estrutural implementado no código deve estar descrito aqui ou em um dos documentos acima.
+
+## Contratos arquiteturais explícitos
+
+1. `GET /api/cards` é local-first: consulta o SQLite, opcionalmente enriquece via Scryfall e sempre monta a resposta final novamente a partir do banco local.
+2. `cards.id` é o ID local da impressão; `scryfall_id` identifica a impressão no provedor; `oracle_id` identifica a carta conceitual entre reimpressões.
+3. `name` é o nome canônico e `printed_name` guarda o nome realmente impresso/traduzido quando existir.
+4. O usuário de um anúncio vem da sessão, nunca do payload.
+5. O idioma de uma oferta vem da impressão em `cards`; `listings.language` é mantido por compatibilidade.
+6. Tokens brutos de sessão nunca são persistidos.
+7. O modo estático do frontend é demonstração local, não persistência compartilhada.
+8. Falha do Scryfall não deve inutilizar o catálogo local.
+9. Os três bancos separados são o padrão; o arquivo único existe somente por compatibilidade.
+10. Imagens não devem ser armazenadas como blobs no SQLite.
+
+## Estado atual das imagens
+
+O runtime ainda usa `cards.image_url` e o navegador requisita essa URL diretamente. `data/images/sample/` contém somente amostras. Os AVIFs locais já preparados fora do runtime ainda não estão conectados à aplicação; copiar esses arquivos para a VPS, isoladamente, não muda a resolução de imagens do ManaPonte.
+
+Quando a camada local for integrada, ela deve ficar desacoplada do domínio: arquivos estáticos no filesystem/object storage, banco com chave/metadado e uma única função/camada responsável por transformar a chave em URL.
+
+## Concorrência e estado em memória
+
+O servidor usa `ThreadingHTTPServer`. Conexões SQLite são abertas por operação, enquanto estruturas compartilhadas em memória usam locks. O cache de busca remota tem no máximo 256 entradas, TTL de 300 segundos e deduplica chamadas idênticas em voo com `threading.Event`. O rate limiter de login também é local ao processo.
+
+Reiniciar o processo apaga cache remoto e histórico do rate limiter; múltiplas instâncias não compartilham esses estados.
+
+## Configuração e precedência
+
+Para cada banco dividido, a precedência é: caminho explícito recebido pela função, variável de ambiente específica e, por último, caminho padrão em `data/`. Se somente `MANAPONTE_DB_PATH` estiver configurado, o modo legado de arquivo único é ativado.
+
+## Migrações atuais
+
+- v1: schemas-base;
+- v2/v3: autenticação, sessões e telefone;
+- v4: `desired_language` em desejos;
+- v5: `printed_name` e índice correspondente no catálogo.
+
+Sessões antigas podem ser recriadas quando incompatíveis porque são efêmeras; dados permanentes são preservados por migrações incrementais.
+
+---
 ## Objetivo e recorte
 
 O ManaPonte resolve descoberta e contato: “quem perto de mim tem esta impressão e aceita vender ou trocar?”. O catálogo de Magic é referência compartilhada; usuários não digitam nomes livres para representar uma carta. Pagamento, logística e garantia da transação ficam fora do MVP.

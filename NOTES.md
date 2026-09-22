@@ -22,3 +22,12 @@ A validação visual registrada anteriormente permanece em
 o driver CDP legado não faz parte da CI porque depende de um caminho local do
 módulo WebSocket. Os arquivos de imagens existentes foram preservados; coleta
 em massa de imagens continua opcional e fora deste trabalho.
+
+## Auditoria arquitetural
+
+A arquitetura foi revisada contra o código atual e documentada em profundidade.
+`ARCHITECTURE.md` funciona como documento-mestre, com referências separadas para API, persistência, frontend, operação e testes em `docs/`.
+
+A revisão registrou explicitamente precedência de configuração, modo legado, concorrência do servidor, cache remoto com deduplicação em voo, semântica de `source` em `/api/cards`, nomes `name`/`printed_name`, invariantes de ownership/idioma, detecção do modo estático, lifecycle do seed, CI/Pages e limites operacionais.
+
+Também fica documentado que os AVIFs locais ainda não fazem parte do runtime: o código atual continua consumindo `cards.image_url`. A integração de mídia local deve ser feita como camada estática separada, sem blobs no SQLite.
