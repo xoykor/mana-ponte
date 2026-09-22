@@ -56,7 +56,11 @@
 
           const payload = await response.json();
           const names = [
-            ...new Set((payload.cards || []).map(card => card.name).filter(Boolean)),
+            ...new Set(
+              (payload.cards || [])
+                .map(card => card.printed_name || card.printedName || card.name)
+                .filter(Boolean)
+            ),
           ].slice(0, 12);
 
           list.innerHTML = names
