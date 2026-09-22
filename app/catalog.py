@@ -109,6 +109,13 @@ def normalize_card(card: Mapping) -> tuple | None:
         values.append(text)
 
     scryfall_id, name, set_code, set_name, collector_number = values
+
+    # name é o nome Oracle/canônico. Impressões traduzidas podem trazer
+    # o nome efetivamente impresso no campo printed_name.
+    printed_name = card.get("printed_name")
+    if printed_name is not None:
+        printed_name = str(printed_name).strip() or None
+
     oracle_id = card.get("oracle_id")
     if oracle_id is not None and not isinstance(oracle_id, str):
         oracle_id = str(oracle_id)
@@ -122,6 +129,7 @@ def normalize_card(card: Mapping) -> tuple | None:
         scryfall_id,
         oracle_id,
         name,
+        printed_name,
         set_code,
         set_name,
         collector_number,
@@ -137,6 +145,7 @@ INSERT INTO cards(
     scryfall_id,
     oracle_id,
     name,
+    printed_name,
     set_code,
     set_name,
     collector_number,
@@ -144,10 +153,11 @@ INSERT INTO cards(
     rarity,
     image_url
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(scryfall_id) DO UPDATE SET
     oracle_id = excluded.oracle_id,
     name = excluded.name,
+    printed_name = excluded.printed_name,
     set_code = excluded.set_code,
     set_name = excluded.set_name,
     collector_number = excluded.collector_number,
@@ -212,7 +222,8 @@ def search_scryfall(
 
     page_url = (
         f"{SCRYFALL_SEARCH_ENDPOINT}?"
-        f"q={quote(' '.join(query_parts))}&include_extras=false"
+        f"q={quote(' '.join(query_parts))}"
+        "&include_extras=false&include_multilingual=true"
     )
     raw_cards = []
     visited_urls = set()
