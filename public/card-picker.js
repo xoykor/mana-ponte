@@ -77,6 +77,14 @@
 
 
     /**
+     * Nome visível da impressão; prioriza a tradução quando disponível.
+     */
+    function displayName(card) {
+      return card?.printed_name || card?.printedName || card?.name || "Carta";
+    }
+
+
+    /**
      * Produz a identificação curta exibida para uma impressão.
      */
     function label(card) {
@@ -84,7 +92,7 @@
       const number = card.collector_number || card.collectorNumber || "";
       const lang = String(card.language || card.lang || "").toUpperCase();
       return (
-        `${card.name || "Carta"} — ${set}${number ? ` #${number}` : ""}` +
+        `${displayName(card)} — ${set}${number ? ` #${number}` : ""}` +
         `${lang ? ` · ${lang}` : ""}`
       );
     }
@@ -175,7 +183,7 @@
               role="option"
             >
               <span>
-                <strong>${esc(card.name)}</strong>
+                <strong>${esc(displayName(card))}</strong>
                 <small>${esc(set)}${number}${language}</small>
               </span>
             </button>
@@ -283,7 +291,7 @@
         .filter(card =>
           (!requestedLanguage ||
             String(card.language || card.lang || "").toLowerCase() === requestedLanguage) &&
-          `${card.name} ${card.set_code} ${card.collector_number}`
+          `${card.name} ${card.printed_name || card.printedName || ""} ${card.set_code} ${card.collector_number}`
             .toLocaleLowerCase()
             .includes(normalized)
         )
@@ -438,7 +446,7 @@
     language?.addEventListener("change", () => {
       const previous = selectedCard;
       if (previous) {
-        search.value = previous.name || "";
+        search.value = displayName(previous);
         selectedCard = null;
         renderSelected();
         root.dispatchEvent(

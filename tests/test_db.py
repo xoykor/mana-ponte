@@ -100,7 +100,55 @@ class DatabaseTest(unittest.TestCase):
                 migrated.execute(
                     "SELECT MAX(version) FROM schema_version"
                 ).fetchone()[0],
-                4,
+                5,
+            )
+
+    def test_migrates_cards_printed_name(self):
+        """Banco antigo recebe nome impresso sem perder cartas existentes."""
+
+        legacy = Path(self.temp.name) / "cards-legacy.db"
+        with closing(get_connection(legacy)) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO schema_version(version) VALUES (1);
+
+                CREATE TABLE cards (
+                    id INTEGER PRIMARY KEY,
+                    scryfall_id TEXT NOT NULL UNIQUE,
+                    oracle_id TEXT,
+                    name TEXT NOT NULL,
+                    set_code TEXT NOT NULL,
+                    set_name TEXT NOT NULL,
+                    collector_number TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    rarity TEXT NOT NULL DEFAULT 'common',
+                    image_url TEXT,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO cards(
+                    scryfall_id, name, set_code, set_name, collector_number
+                ) VALUES ('legacy-card', 'Test Card', 'tst', 'Teste', '1');
+                """
+            )
+            connection.commit()
+
+        init_db(legacy)
+
+        with closing(get_connection(legacy)) as migrated:
+            columns = {
+                row["name"]
+                for row in migrated.execute("PRAGMA table_info(cards)")
+            }
+            self.assertIn("printed_name", columns)
+            self.assertEqual(
+                migrated.execute(
+                    "SELECT name FROM cards WHERE scryfall_id = 'legacy-card'"
+                ).fetchone()[0],
+                "Test Card",
             )
 
     def test_migrates_marketplace_desired_language(self):
@@ -140,5 +188,5 @@ class DatabaseTest(unittest.TestCase):
                 migrated.execute(
                     "SELECT MAX(version) FROM schema_version"
                 ).fetchone()[0],
-                4,
+                5,
             )

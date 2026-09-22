@@ -96,6 +96,58 @@ class ApiTest(unittest.TestCase):
         self.csrf = data["csrf_token"]
         return data
 
+    def test_card_search_accepts_printed_name(self):
+        """Busca aceita nome traduzido e preserva o nome canônico."""
+
+        with closing(get_connection(self.db)) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO cards(
+                    scryfall_id, oracle_id, name, printed_name, set_code,
+                    set_name, collector_number, language, rarity, image_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "translated-card-test",
+                    "translated-oracle-test",
+                    "Test Card",
+                    "Carta Teste",
+                    "tst",
+                    "Teste",
+                    "99",
+                    "pt",
+                    "common",
+                    "https://example.test/card.jpg",
+                ),
+            )
+            conn.commit()
+
+        with patch.dict(
+            "os.environ",
+            {"MANAPONTE_REMOTE_SEARCH": "0"},
+            clear=False,
+        ):
+            status, translated = self.request(
+                "GET",
+                "/api/cards?q=Carta%20Teste&lang=pt",
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(translated["cards"])
+            self.assertEqual(translated["cards"][0]["printed_name"], "Carta Teste")
+            self.assertEqual(translated["cards"][0]["name"], "Test Card")
+
+            status, canonical = self.request(
+                "GET",
+                "/api/cards?q=Test%20Card&lang=pt",
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(
+                any(
+                    card["printed_name"] == "Carta Teste"
+                    for card in canonical["cards"]
+                )
+            )
+
     def test_register_duplicate_cookie_and_me(self):
         """Cadastro normaliza dados, cria cookie e rejeita duplicatas."""
 
@@ -736,6 +788,7 @@ class ApiTest(unittest.TestCase):
             "remote-card-id",
             "remote-oracle-id",
             "Regression Felidar",
+            None,
             "tst",
             "Regression Set",
             "1",
@@ -778,6 +831,7 @@ class ApiTest(unittest.TestCase):
             "remote-sol-ring-id",
             "remote-sol-ring-oracle",
             "Sol Ring",
+            None,
             "tst",
             "Regression Set",
             "2",

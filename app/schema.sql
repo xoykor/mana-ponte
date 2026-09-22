@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS cards (
     scryfall_id TEXT NOT NULL UNIQUE,
     oracle_id TEXT,
     name TEXT NOT NULL,
+    printed_name TEXT,
     set_code TEXT NOT NULL,
     set_name TEXT NOT NULL,
     collector_number TEXT NOT NULL,

@@ -195,6 +195,22 @@ def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
     }
 
 
+def _migrate_cards(connection: sqlite3.Connection) -> None:
+    """Adiciona o nome impresso das cartas sem apagar o catálogo."""
+
+    card_columns = _columns(connection, "cards")
+    if "printed_name" not in card_columns:
+        connection.execute("ALTER TABLE cards ADD COLUMN printed_name TEXT")
+
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cards_printed_name "
+        "ON cards(printed_name COLLATE NOCASE)"
+    )
+    connection.execute(
+        "INSERT OR IGNORE INTO schema_version(version) VALUES (5)"
+    )
+
+
 def _migrate_auth(connection: sqlite3.Connection) -> None:
     """Atualiza as tabelas de autenticação de versões antigas.
 
@@ -281,8 +297,9 @@ def _migrate_listings(connection: sqlite3.Connection) -> None:
 
 
 def _migrate_legacy(connection: sqlite3.Connection) -> None:
-    """Aplica no arquivo único as migrações de contas e marketplace."""
+    """Aplica no arquivo único as migrações do catálogo, contas e marketplace."""
 
+    _migrate_cards(connection)
     _migrate_auth(connection)
     _migrate_listings(connection)
 
@@ -312,9 +329,13 @@ def _init_with_schema(path: Path, schema_path: Path, migrations=None) -> Path:
 
 
 def init_cards_db(db_path: str | Path | None = None) -> Path:
-    """Cria o schema do banco de cartas."""
+    """Cria o schema do banco de cartas e aplica migrações do catálogo."""
 
-    return _init_with_schema(resolve_cards_db_path(db_path), CARDS_SCHEMA_PATH)
+    return _init_with_schema(
+        resolve_cards_db_path(db_path),
+        CARDS_SCHEMA_PATH,
+        _migrate_cards,
+    )
 
 
 def init_accounts_db(db_path: str | Path | None = None) -> Path:
