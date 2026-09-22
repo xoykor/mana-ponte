@@ -22,6 +22,7 @@ class CatalogTest(unittest.TestCase):
             "id": "abc",
             "oracle_id": "oracle",
             "name": "Delver // Insect",
+            "printed_name": "Investigador // Inseto",
             "set": "mid",
             "set_name": "Innistrad: Midnight Hunt",
             "collector_number": "47",
@@ -34,6 +35,7 @@ class CatalogTest(unittest.TestCase):
         }
 
         normalized = normalize_card(card)
+        self.assertEqual(normalized[3], "Investigador // Inseto")
         self.assertEqual(normalized[-1], "https://img.test/card.jpg")
 
         # O catálogo da aplicação é de cartas de papel, não de cartas digitais.
@@ -55,6 +57,7 @@ class CatalogTest(unittest.TestCase):
                             "id": "id-1",
                             "oracle_id": "o-1",
                             "name": "Sol Ring",
+                            "printed_name": "Anel Solar",
                             "set": "cmm",
                             "set_name": "Commander Masters",
                             "collector_number": "396",
@@ -99,10 +102,12 @@ class CatalogTest(unittest.TestCase):
                     1,
                 )
                 row = conn.execute(
-                    "SELECT id, name FROM cards WHERE scryfall_id = 'id-1'"
+                    "SELECT id, name, printed_name FROM cards "
+                    "WHERE scryfall_id = 'id-1'"
                 ).fetchone()
                 self.assertEqual(row[0], stable_id)
                 self.assertEqual(row[1], "Sol Ring atualizado")
+                self.assertEqual(row[2], "Anel Solar")
 
     def test_search_scryfall_follows_all_result_pages(self):
         """A busca remota percorre as páginas seguintes do Scryfall."""
@@ -154,3 +159,5 @@ class CatalogTest(unittest.TestCase):
 
         self.assertEqual([row[0] for row in rows], ["page-1", "page-2"])
         self.assertEqual(request.call_count, 2)
+        first_request = request.call_args_list[0].args[0]
+        self.assertIn("include_multilingual=true", first_request.full_url)
