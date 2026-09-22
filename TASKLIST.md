@@ -11,6 +11,7 @@
 - [x] Etapa 7: encerramento técnico (testes com bancos temporários/mocks, documentação e `git diff --check`)
 - [x] Etapa 8: área autenticada (perfil, meus anúncios, edição/remoção, desejos e matches por `oracle_id`)
 - [x] Etapa 9: frontend preparado para API externa (config runtime, CORS, cookies cross-site seguros e CI)
+- [x] Etapa 10: auditoria arquitetural completa — backend, bancos, catálogo, cache remoto, frontend, segurança, operação, CI/Pages e contratos de teste documentados em `ARCHITECTURE.md` e `docs/`
 
 ## Estado de validação
 
