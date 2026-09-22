@@ -173,7 +173,15 @@ caminho explicitamente ou definir essa variável sem as variáveis específicas.
 - as imagens oficiais dependem de conexão e da disponibilidade do Scryfall; o backend não armazena mídia enviada por usuários para manter baixo o uso de disco e banda;
 - o GitHub Pages não hospeda o backend: persistência compartilhada exige uma API HTTPS separada, embora o frontend já suporte essa configuração via `public/config.js`.
 
-Veja [ARCHITECTURE.md](ARCHITECTURE.md) para limites, decisões e evolução.
+Veja [ARCHITECTURE.md](ARCHITECTURE.md) para a visão completa.
+
+Documentação técnica detalhada:
+
+- [API e HTTP](docs/API.md)
+- [Modelo de dados e persistência](docs/DATA_MODEL.md)
+- [Frontend](docs/FRONTEND.md)
+- [Operação, configuração e deploy](docs/OPERATIONS.md)
+- [Testes e contratos verificados](docs/TESTING.md)
 
 
 ## Licença
