@@ -950,8 +950,12 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         language = query_params.get("lang", "").strip()[:8]
 
         if search:
-            clauses.append("name LIKE ? COLLATE NOCASE")
-            values.append(f"%{search}%")
+            like_search = f"%{search}%"
+            clauses.append(
+                "(name LIKE ? COLLATE NOCASE "
+                "OR printed_name LIKE ? COLLATE NOCASE)"
+            )
+            values.extend((like_search, like_search))
         if set_code:
             clauses.append("set_code = ? COLLATE NOCASE")
             values.append(set_code)
@@ -988,6 +992,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         scryfall_id,
                         oracle_id,
                         name,
+                        printed_name,
                         set_code,
                         set_name,
                         collector_number,
@@ -1098,8 +1103,12 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             raise ValueError("Preço mínimo não pode ser maior que o máximo")
 
         if query_params.get("card"):
-            clauses.append("c.name LIKE ? COLLATE NOCASE")
-            values.append(f"%{query_params['card'][:100]}%")
+            card_search = f"%{query_params['card'][:100]}%"
+            clauses.append(
+                "(c.name LIKE ? COLLATE NOCASE "
+                "OR c.printed_name LIKE ? COLLATE NOCASE)"
+            )
+            values.extend((card_search, card_search))
 
         sort = query_params.get("sort", "recent").strip().lower()
         sort_sql = {
@@ -1133,6 +1142,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.card_id,
                     l.user_id,
                     c.name,
+                    c.printed_name,
                     c.set_code,
                     c.set_name,
                     c.collector_number,
@@ -1194,6 +1204,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                     l.mode,
                     l.created_at,
                     c.name,
+                    c.printed_name,
                     c.set_code,
                     c.set_name,
                     c.collector_number,
@@ -1255,6 +1266,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         l.card_id,
                         l.user_id,
                         c.name,
+                        c.printed_name,
                         c.set_code,
                         c.set_name,
                         c.image_url,
@@ -1282,6 +1294,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         w.id,
                         w.card_id,
                         c.name,
+                        c.printed_name,
                         c.set_code,
                         c.set_name,
                         c.image_url,
@@ -1340,6 +1353,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
                         w.card_id,
                         c.oracle_id,
                         c.name,
+                        c.printed_name,
                         c.set_code,
                         c.set_name,
                         c.collector_number,
