@@ -1,4 +1,6 @@
-# Mapa da documentação técnica
+# Arquitetura do ManaPonte
+
+## Mapa da documentação técnica
 
 Este arquivo mantém a visão de alto nível. Os contratos detalhados, revisados contra o código atual, estão separados para facilitar manutenção:
 
@@ -49,8 +51,6 @@ Para cada banco dividido, a precedência é: caminho explícito recebido pela fu
 Sessões antigas podem ser recriadas quando incompatíveis porque são efêmeras; dados permanentes são preservados por migrações incrementais.
 
 ---
-# Arquitetura do ManaPonte
-
 ## Objetivo e recorte
 
 O ManaPonte resolve descoberta e contato: “quem perto de mim tem esta impressão e aceita vender ou trocar?”. O catálogo de Magic é referência compartilhada; usuários não digitam nomes livres para representar uma carta. Pagamento, logística e garantia da transação ficam fora do MVP.
