@@ -1,0 +1,12 @@
+{
+  "name": "mana-ponte-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-22",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "MANAPONTE_ORIGIN": "http://168-138-250-53.sslip.io"
+  }
+}
