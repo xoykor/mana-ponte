@@ -1,62 +1,141 @@
-const DEFAULT_ORIGIN = "http://168-138-250-53.sslip.io";
 
-function originFrom(env) {
-  const origin = new URL(env.MANAPONTE_ORIGIN || DEFAULT_ORIGIN);
-  if (origin.protocol !== "http:" && origin.protocol !== "https:") {
-    throw new Error("MANAPONTE_ORIGIN must use http:// or https://");
+import { badRequest, currentSession, authPayload, json } from "./lib.js";
+import { getCards, getSets } from "./catalog.js";
+import { login, logout, register, updateProfile } from "./auth.js";
+import {
+  createListing,
+  deleteListing,
+  getListing,
+  getListings,
+  updateListing
+} from "./listings.js";
+import {
+  createWant,
+  deleteWant,
+  getMatches,
+  getPublicUser,
+  getWants
+} from "./wants.js";
+
+function numericTail(path) {
+  const value = Number(path.split("/").pop());
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+async function handleApi(request, env) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
+
+  try {
+    if (method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
+          "access-control-allow-headers": "Content-Type, X-CSRF-Token",
+          "access-control-max-age": "600"
+        }
+      });
+    }
+
+    if (method === "GET" && path === "/api/health") {
+      return json({
+        status: "ok",
+        service: "ManaPonte",
+        runtime: "cloudflare-workers-d1",
+        image_storage: "none"
+      });
+    }
+
+    if (method === "GET" && path === "/api/auth/me") {
+      const session = await currentSession(request, env);
+      return session
+        ? json(authPayload(session))
+        : json({ error: "Não autenticado" }, 401);
+    }
+
+    if (method === "GET" && path === "/api/cards") {
+      return getCards(url, env);
+    }
+
+    if (method === "GET" && path === "/api/sets") {
+      return getSets(env);
+    }
+
+    if (method === "GET" && path === "/api/listings") {
+      return getListings(request, url, env);
+    }
+
+    if (method === "GET" && /^\/api\/listings\/\d+$/.test(path)) {
+      return getListing(numericTail(path), env);
+    }
+
+    if (method === "GET" && path === "/api/wants") {
+      return getWants(request, url, env);
+    }
+
+    if (method === "GET" && path === "/api/matches") {
+      return getMatches(request, url, env);
+    }
+
+    if (method === "GET" && /^\/api\/users\/\d+$/.test(path)) {
+      return getPublicUser(numericTail(path), env);
+    }
+
+    if (method === "POST" && path === "/api/auth/register") {
+      return register(request, env);
+    }
+
+    if (method === "POST" && path === "/api/auth/login") {
+      return login(request, env);
+    }
+
+    if (method === "POST" && path === "/api/auth/logout") {
+      return logout(request, env);
+    }
+
+    if (method === "POST" && path === "/api/listings") {
+      return createListing(request, env);
+    }
+
+    if (method === "POST" && path === "/api/wants") {
+      return createWant(request, env);
+    }
+
+    if (method === "PATCH" && path === "/api/profile") {
+      return updateProfile(request, env);
+    }
+
+    if (method === "PATCH" && /^\/api\/listings\/\d+$/.test(path)) {
+      return updateListing(request, numericTail(path), env);
+    }
+
+    if (method === "DELETE" && /^\/api\/listings\/\d+$/.test(path)) {
+      return deleteListing(request, numericTail(path), env);
+    }
+
+    if (method === "DELETE" && /^\/api\/wants\/\d+$/.test(path)) {
+      return deleteWant(request, numericTail(path), env);
+    }
+
+    return json({ error: "Rota não encontrada" }, 404);
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (/D1|SQL|database|binding/i.test(message)) {
+      return json({ error: "Erro interno do banco" }, 500);
+    }
+    return badRequest(message);
   }
-  return origin;
 }
 
 export default {
   async fetch(request, env) {
-    const origin = originFrom(env);
-    const incoming = new URL(request.url);
-    const target = new URL(incoming.pathname + incoming.search, origin);
-
-    const headers = new Headers(request.headers);
-    headers.delete("Host");
-    headers.set("X-Forwarded-Host", incoming.host);
-    headers.set("X-Forwarded-Proto", incoming.protocol.slice(0, -1));
-
-    const clientIp = request.headers.get("CF-Connecting-IP");
-    if (clientIp) {
-      headers.set("X-ManaPonte-Client-IP", clientIp);
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/")) {
+      return handleApi(request, env);
     }
-
-    const init = {
-      method: request.method,
-      headers,
-      redirect: "manual",
-    };
-
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      init.body = request.body;
-    }
-
-    const upstream = await fetch(target, init);
-    const responseHeaders = new Headers(upstream.headers);
-
-    const location = responseHeaders.get("Location");
-    if (location) {
-      try {
-        const redirect = new URL(location, target);
-        if (redirect.origin === origin.origin) {
-          redirect.protocol = incoming.protocol;
-          redirect.host = incoming.host;
-          responseHeaders.set("Location", redirect.toString());
-        }
-      } catch {
-        // Mantém Location original caso a origem envie um valor não-URL.
-      }
-    }
-
-    responseHeaders.set("X-ManaPonte-Proxy", "cloudflare-worker");
-
-    return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: responseHeaders,
-    });
-  },
+    return env.ASSETS.fetch(request);
+  }
 };
