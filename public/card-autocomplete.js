@@ -1,4 +1,12 @@
 /*
+ * AUTOCOMPLETE DE NOMES DE CARTAS
+ * ===============================
+ *
+ * Sugere nomes enquanto a pessoa digita. É mais simples que card-picker.js:
+ * ajuda a preencher texto, mas não mantém uma impressão completa selecionada.
+ */
+
+/*
  * Autocomplete leve de nomes de cartas usando o catálogo já exposto pela API.
  */
 (function () {

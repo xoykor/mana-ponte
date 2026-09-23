@@ -1,3 +1,11 @@
+/*
+ * DETALHE DE UM ANÚNCIO
+ * =====================
+ *
+ * Lê ?id=ID da URL, busca o anúncio e apresenta carta, preço, condição
+ * e dados públicos do vendedor.
+ */
+
 (function () {
   "use strict";
 
@@ -13,6 +21,7 @@
 
   const $ = selector => document.querySelector(selector);
 
+  /* Formata a data de criação do anúncio. */
   function formatDate(value) {
     if (!value) {
       return "";
@@ -26,6 +35,7 @@
     }).format(date);
   }
 
+  /* Busca o anúncio indicado na URL e preenche a página. */
   async function load() {
     if (STATIC_MODE) {
       throw new Error("A página individual do anúncio exige a API.");

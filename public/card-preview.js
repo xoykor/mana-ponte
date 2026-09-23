@@ -1,4 +1,12 @@
 /*
+ * AMPLIAÇÃO DE IMAGEM DE CARTA
+ * ============================
+ *
+ * Cria um dialog reutilizável para ampliar qualquer <img data-card-image>.
+ * A imagem continua externa; este código não armazena arquivos de imagem.
+ */
+
+/*
  * Visualização global de cartas.
  *
  * Qualquer imagem marcada com data-card-image pode ser ampliada sem que cada
@@ -9,6 +17,7 @@
 
   let dialog = null;
 
+  /* Cria o dialog somente quando ele é necessário pela primeira vez. */
   function ensureDialog() {
     if (dialog) {
       return dialog;
@@ -44,6 +53,7 @@
     return dialog;
   }
 
+  /* Abre o preview com uma URL de imagem. */
   function open(source, label = "Carta") {
     const imageSource = String(source || "").trim();
     if (!imageSource) {
@@ -60,6 +70,7 @@
     preview.showModal();
   }
 
+  /* Lê dados de uma tag img e chama open(). */
   function openFromImage(image) {
     open(
       image.currentSrc || image.src,

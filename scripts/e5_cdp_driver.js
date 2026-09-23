@@ -1,3 +1,11 @@
+/*
+ * DRIVER DE VALIDAÇÃO VISUAL
+ * ==========================
+ *
+ * Script auxiliar para automação via Chrome DevTools Protocol (CDP).
+ * Não participa do runtime de produção.
+ */
+
 #!/usr/bin/env node
 /*
  * Etapa 5 — validação visual e de interação no navegador.
