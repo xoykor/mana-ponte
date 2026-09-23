@@ -1,345 +1,336 @@
-# API do ManaPonte
+# API de produção do ManaPonte
 
-Este documento descreve o contrato HTTP implementado em `app/server.py`. Ele documenta o comportamento atual do código, não uma API futura.
+Este documento descreve a API implementada em cloudflare-worker/src/.
 
-## Transporte e respostas
+Base de produção:
 
-- O servidor usa `ThreadingHTTPServer` e `BaseHTTPRequestHandler` da biblioteca padrão.
-- Rotas `/api/*` respondem JSON UTF-8.
-- Respostas JSON incluem `X-Content-Type-Options: nosniff`.
-- Rotas de autenticação usam `Cache-Control: no-store`; as demais respostas JSON usam `no-cache`.
-- O corpo de rotas mutáveis é limitado a 32 KiB.
-- O corpo precisa ser um objeto JSON. Arrays, valores escalares e corpo vazio são rejeitados.
-- Erros de parâmetros capturados pelo dispatcher retornam HTTP 400 com `{"error": "..."}`.
-- Rotas desconhecidas sob `/api/` retornam 404 em JSON.
-- Arquivos estáticos fora de `/api/` são servidos de `public/`.
+https://mana-ponte.vsxk.workers.dev
 
-## CORS
+## Convenções
 
-`MANAPONTE_ALLOWED_ORIGIN` contém uma lista separada por vírgulas. A origem recebida precisa coincidir exatamente com uma entrada configurada.
+Rotas /api/* são executadas pelo Worker.
 
-Quando autorizada, a resposta inclui:
+Respostas JSON geradas pelo helper comum incluem:
 
-- `Access-Control-Allow-Origin` com a origem solicitante;
-- `Access-Control-Allow-Credentials: true`;
-- `Vary: Origin`.
+- Content-Type: application/json; charset=utf-8
+- Cache-Control: no-store
+- X-Content-Type-Options: nosniff
 
-O preflight `OPTIONS` só é aceito para caminhos `/api/*` e retorna:
+Rotas desconhecidas retornam 404 JSON.
 
-- métodos: `GET, POST, PATCH, DELETE, OPTIONS`;
-- headers: `Content-Type, X-CSRF-Token`;
-- `Access-Control-Max-Age: 600`.
+Erros de validação normalmente retornam 400 com campo error.
 
-## Sessão e CSRF
+Erros identificados como D1/SQL/database/binding retornam 500 com mensagem genérica de banco.
 
-O cookie da sessão se chama `mp_session`.
+O corpo JSON é limitado a 64 KiB quando Content-Length é informado.
 
-Por padrão:
+## Sessão
 
-- `HttpOnly`;
-- `SameSite=Lax`;
-- `Path=/`;
-- `Max-Age=604800` segundos.
+Cookie:
 
-Com `MANAPONTE_SECURE_COOKIES=1`, o cookie recebe `Secure`.
+mp_session
 
-Com `MANAPONTE_CROSS_SITE_COOKIES=1`, o servidor força:
+Atributos:
 
-- `SameSite=None`;
-- `Secure`.
+- Path=/
+- Max-Age=604800
+- HttpOnly
+- Secure
+- SameSite=Lax
 
-Operações mutáveis autenticadas exigem o header `X-CSRF-Token`, obtido em `/api/auth/me` ou na resposta de login/cadastro.
+O token bruto só fica no cookie. O D1 armazena SHA-256 do token.
 
-## Rotas
+Operações mutáveis autenticadas exigem X-CSRF-Token.
 
-### `GET /api/health`
+## Health
 
-Retorna o estado básico do processo:
+### GET /api/health
 
-```json
-{"status":"ok","service":"ManaPonte"}
-```
+Resposta:
 
-Não verifica disponibilidade do Scryfall nem integridade profunda dos bancos.
+    {
+      "status": "ok",
+      "service": "ManaPonte",
+      "runtime": "cloudflare-workers-d1",
+      "image_storage": "none"
+    }
 
-### `POST /api/auth/register`
+O healthcheck não consulta Scryfall.
 
-Cria usuário e inicia sessão.
+## Autenticação
+
+### POST /api/auth/register
 
 Campos:
 
-- `username`: 3–30 caracteres; letras minúsculas após normalização, números, `_`, `.` e `-`;
-- `email`: normalizado com `casefold()`, até 254 caracteres;
-- `password`: 12–128 caracteres, com minúscula, maiúscula, número e símbolo;
-- `display_name`: 2–80 caracteres;
-- `phone`: opcional, 10–15 dígitos após normalização;
-- `city`: 2–80 caracteres;
-- `state`: uma UF brasileira válida.
+- username: 3–30; a-z, 0-9, _, . e -
+- email: até 254 caracteres e formato válido
+- password: 12–128, com minúscula, maiúscula, número e símbolo
+- display_name: 2–80
+- phone: opcional; 10–15 dígitos após normalização
+- city: 2–80
+- state: UF brasileira válida
 
-O cliente não define `email_verified`; novos usuários começam com 0.
+Senha: PBKDF2-SHA256 com 100.000 iterações para novos hashes.
 
-Conflito de username/e-mail retorna 409.
+Sucesso: 201, sessão iniciada, user + csrf_token.
 
-Resposta 201 contém usuário público/autenticado, `csrf_token` e `Set-Cookie`.
+Duplicidade: 409.
 
-### `POST /api/auth/login`
+### POST /api/auth/login
 
-Aceita:
+Campos:
 
-- `identifier`: username ou e-mail;
-- `password`.
+- identifier: username ou e-mail
+- password
 
-O identificador é normalizado da mesma forma que e-mail/username.
+Cinco falhas em 15 minutos por IP + identificador ativam bloqueio por 15 minutos.
 
-O rate limiter usa a chave:
+Sucesso limpa a entrada de rate limit e cria nova sessão.
 
-```text
-IP:identificador
-```
-
-São permitidas até 5 falhas numa janela de 900 segundos por processo. Um login correto apaga o histórico da chave.
-
-Usuário inexistente ainda passa por uma verificação de hash fictício para reduzir diferença temporal observável.
-
-### `GET /api/auth/me`
-
-Exige sessão válida. Retorna:
-
-- `id`;
-- `username`;
-- `email`;
-- `display_name`;
-- `phone`;
-- `city`;
-- `state`;
-- `email_verified`;
-- `csrf_token`.
-
-O e-mail aparece aqui porque esta é uma rota autenticada do próprio usuário. Ele não aparece no perfil público.
-
-### `POST /api/auth/logout`
-
-Exige sessão e CSRF.
-
-Revoga a linha da sessão e sobrescreve o cookie com `Max-Age=0`.
-
-### `PATCH /api/profile`
-
-Exige sessão e CSRF.
-
-Permite alterar:
-
-- `display_name`;
-- `phone`;
-- `city`;
-- `state`.
-
-Após o commit, a sessão é relida para a resposta refletir os dados atualizados.
-
-### `GET /api/cards`
-
-Parâmetros:
-
-- `q`: até 100 caracteres;
-- `set`: até 16;
-- `lang`: até 8;
-- `page`: inteiro positivo, máximo lógico de 100000;
-- `limit`: inteiro positivo, máximo 100.
-
-A busca local usa:
-
-```sql
-name LIKE ? COLLATE NOCASE
-OR printed_name LIKE ? COLLATE NOCASE
-```
-
-`set` compara `set_code` sem distinção de caixa. `lang` compara `language`.
-
-#### Ordem real da busca
-
-1. Abre o banco local de cartas.
-2. Conta resultados locais com os filtros recebidos.
-3. Se `q` tiver 3 ou mais caracteres e a busca remota estiver habilitada, consulta o Scryfall.
-4. Resultados remotos são normalizados e gravados por upsert no banco local.
-5. O total é recalculado.
-6. A página final é lida novamente do banco local.
-
-Portanto, o Scryfall é enriquecimento/fallback do catálogo local; a resposta final é sempre construída a partir do SQLite.
-
-Se o Scryfall falhar, a exceção é absorvida pela camada de cache remoto e a busca local continua.
-
-`source` vale:
-
-- `local`: nenhuma linha nova foi importada naquela chamada;
-- `scryfall`: a chamada remota devolveu linhas e elas foram persistidas.
-
-`source` não significa que cada item da página veio originalmente do Scryfall naquela requisição.
-
-A ordenação é:
-
-```text
-name, set_code, collector_number
-```
-
-### `GET /api/sets`
-
-Retorna `set_code`, `set_name` e contagem de cartas agrupada por combinação código/nome, ordenada por nome do set.
-
-### `GET /api/listings`
-
-Filtros:
-
-- `card_id`;
-- `card`;
-- `set`;
-- `lang`;
-- `city`;
-- `state`;
-- `mode`;
-- `condition`;
-- `min_price`;
-- `max_price`;
-- `mine`;
-- `sort`;
-- `page`;
-- `limit`.
-
-`card` pesquisa `cards.name` e `cards.printed_name`.
-
-`mode=venda` inclui `venda` e `ambos`.
-
-`mode=troca` inclui `troca` e `ambos`.
-
-`mode=ambos` exige exatamente `ambos`.
-
-`mine=1`, `true` ou `yes` exige autenticação e limita a consulta ao usuário da sessão.
-
-Preços de filtro chegam em reais decimais e são convertidos com `Decimal` e arredondamento `ROUND_HALF_UP` para centavos. Preço mínimo maior que máximo é rejeitado.
-
-Ordenações:
-
-- `recent`: `created_at DESC, id DESC`;
-- `oldest`: `created_at ASC, id ASC`;
-- `price_asc`: nulos depois dos preços definidos;
-- `price_desc`: nulos depois dos preços definidos.
-
-O idioma público vem de `cards.language`, não da coluna legada `listings.language`.
-
-### `GET /api/listings/{id}`
-
-Retorna um anúncio, metadados da impressão e dados públicos do vendedor.
-
-Inclui telefone somente porque esta é a página pública de contato do anúncio. Não inclui e-mail, hash de senha, token ou CSRF.
-
-### `POST /api/listings`
-
-Exige sessão e CSRF.
-
-Valida:
-
-- `card_id` existente;
-- título de 3–120 caracteres;
-- descrição de até 1000;
-- condição: `NM|SP|MP|HP|DMG`;
-- modalidade: `venda|troca|ambos`;
-- preço em centavos não negativo ou nulo;
-- `contact_url` vazia ou HTTP(S) válida, até 300 caracteres.
-
-O `user_id` sempre vem da sessão.
-
-O idioma é lido da impressão selecionada. Um valor de `language` enviado pelo cliente não é fonte de verdade.
-
-### `PATCH /api/listings/{id}`
-
-Exige sessão e CSRF.
-
-Só encontra o anúncio quando `id` e `user_id` da sessão coincidem. Isso faz com que tentativa de editar anúncio alheio se comporte como “não encontrado”.
-
-Revalida todos os campos mutáveis e recalcula o idioma a partir da impressão escolhida.
-
-### `DELETE /api/listings/{id}`
-
-Exige sessão e CSRF.
-
-Remove somente quando o anúncio pertence ao usuário atual.
-
-### `GET /api/users/{id}`
-
-Rota pública.
-
-Retorna:
-
-- identidade pública: id, username, display_name, phone, city, state, created_at;
-- contagem de anúncios;
-- contagem de desejos;
-- até 100 anúncios do usuário;
-- até 100 desejos do usuário.
-
-Não retorna e-mail, hash de senha, sessões nem CSRF.
-
-### `GET /api/wants`
+### GET /api/auth/me
 
 Exige sessão.
 
-Parâmetros `page` e `limit`, com máximo 100 por página.
+Retorna:
 
-Retorna apenas desejos do usuário atual.
+- id
+- username
+- email
+- display_name
+- phone
+- city
+- state
+- email_verified
+- csrf_token
 
-### `POST /api/wants`
+### POST /api/auth/logout
+
+Exige sessão e CSRF.
+
+Revoga a sessão e expira o cookie.
+
+### PATCH /api/profile
+
+Exige sessão e CSRF.
+
+Campos mutáveis:
+
+- display_name
+- phone
+- city
+- state
+
+## Catálogo
+
+### GET /api/cards
+
+Parâmetros:
+
+- q
+- set
+- lang
+- page
+- limit
+
+Limites:
+
+- q: até 100 caracteres usados
+- set: até 16
+- lang: até 8
+- limit: máximo 100
+- page: máximo lógico 100000
+
+Busca local usa name e printed_name com LIKE NOCASE.
+
+Enriquecimento Scryfall ocorre quando q possui pelo menos 3 caracteres e a quantidade local encontrada é menor que o limit.
+
+A integração externa pode persistir no máximo 100 resultados por chamada.
+
+Resposta:
+
+    {
+      "cards": [],
+      "page": 1,
+      "limit": 24,
+      "total": 0,
+      "source": "local"
+    }
+
+source pode ser local ou scryfall.
+
+image_url é somente uma URL externa. Nenhuma imagem é gravada no D1.
+
+### GET /api/sets
+
+Retorna apenas sets já presentes no D1.
+
+Campos:
+
+- set_code
+- set_name
+- card_count
+
+## Anúncios
+
+### GET /api/listings
+
+Filtros:
+
+- card_id
+- card
+- set
+- lang
+- city
+- state
+- condition
+- mode
+- min_price
+- max_price
+- mine
+- sort
+- page
+- limit
+
+mode:
+
+- venda inclui venda e ambos
+- troca inclui troca e ambos
+- ambos exige ambos
+
+sort:
+
+- recent
+- oldest
+- price_asc
+- price_desc
+
+mine=1, true ou yes exige sessão.
+
+min_price e max_price chegam em valor decimal e são convertidos para centavos.
+
+### GET /api/listings/{id}
+
+Rota pública.
+
+Retorna listing com dados da carta e vendedor, incluindo phone quando preenchido.
+
+### POST /api/listings
 
 Exige sessão e CSRF.
 
 Campos:
 
-- `card_id`;
-- `max_price_cents`: opcional, não negativo;
-- `desired_condition`: opcional, `NM|SP|MP|HP|DMG`;
-- `desired_language`: opcional, 2–8 caracteres alfanuméricos;
-- `mode`: `compra|troca|ambos`.
+- card_id
+- title
+- description
+- price_cents
+- condition
+- mode
 
-Existe uma restrição única em `(card_id, user_id)`. Repetir a mesma carta para o mesmo usuário atualiza o desejo em vez de criar outro.
+Regras:
 
-### `DELETE /api/wants/{id}`
+- card_id deve existir;
+- title: 3–120;
+- description: até 1000;
+- condition: NM, SP, MP, HP ou DMG;
+- mode: venda, troca ou ambos;
+- price_cents: inteiro não negativo ou null.
+
+Autoria vem da sessão.
+
+O idioma é derivado da carta.
+
+### PATCH /api/listings/{id}
+
+Exige sessão, CSRF e ownership.
+
+### DELETE /api/listings/{id}
+
+Exige sessão, CSRF e ownership.
+
+## Desejos
+
+### GET /api/wants
+
+Exige sessão.
+
+Paginação máxima: 100.
+
+### POST /api/wants
 
 Exige sessão e CSRF.
 
-Só remove desejo pertencente ao usuário atual.
+Campos:
 
-### `GET /api/matches?card_id=<id>`
+- card_id
+- max_price_cents
+- desired_condition
+- desired_language
+- mode
 
-Não exige sessão.
+mode:
 
-Encontra ofertas da impressão exata e de outras impressões com o mesmo `oracle_id`, quando esse identificador existe.
+- compra
+- troca
+- ambos
 
-O resultado é ordenado por UF, cidade e id do anúncio decrescente.
+Existe UNIQUE(card_id, user_id). Repetir a mesma carta atualiza o desejo.
 
-### `GET /api/matches`
+### DELETE /api/wants/{id}
 
-Sem `card_id`, exige sessão.
+Exige sessão, CSRF e ownership.
 
-Cruza todos os desejos do usuário com anúncios de outros usuários.
+## Matching
 
-Compatibilidade:
+### GET /api/matches?card_id={id}
 
-- impressão exata ou mesmo `oracle_id`;
-- nunca casa anúncio do próprio usuário;
-- `compra` aceita oferta `venda` ou `ambos`;
-- `troca` aceita `troca` ou `ambos`;
-- `ambos` aceita qualquer modalidade compatível;
-- `desired_language`, quando definido, precisa coincidir;
-- preço máximo aceita anúncio sem preço ou com preço menor/igual;
-- condição mínima usa a ordem `NM > SP > MP > HP > DMG`.
+Público.
 
-## Arquivos estáticos
+Busca ofertas da impressão e de reimpressões com mesmo oracle_id.
 
-O servidor trata `/` como `public/index.html`.
+### GET /api/matches
 
-O caminho é resolvido com `Path.resolve()` e precisa permanecer dentro de `public/`; tentativas de traversal são rejeitadas.
+Exige sessão.
 
-O servidor estático do protótipo:
+Cruza os desejos do usuário com anúncios de outros usuários.
 
-- lê o arquivo inteiro em memória;
-- usa `mimetypes.guess_type`;
-- não implementa range requests, compressão, ETag ou cache avançado.
+Regras:
 
-Em produção, esses arquivos devem ser servidos por um servidor/proxy dedicado.
+- impressão exata ou mesmo oracle_id;
+- não retorna anúncio do próprio usuário;
+- respeita modalidade;
+- respeita desired_language quando definido;
+- respeita max_price_cents;
+- condição usa ordem NM > SP > MP > HP > DMG.
+
+## Perfis
+
+### GET /api/users/{id}
+
+Público.
+
+Retorna:
+
+- user: id, username, display_name, phone, city, state, created_at
+- stats: listing_count e want_count
+- até 100 anúncios
+- até 100 desejos
+
+Nunca retorna e-mail, password_hash, sessões ou CSRF.
+
+## OPTIONS
+
+OPTIONS em /api/* retorna 204 e anuncia:
+
+- GET, POST, PATCH, DELETE, OPTIONS
+- Content-Type, X-CSRF-Token
+- max age 600
+
+A implantação principal é same-origin. CORS cross-origin não é um requisito do Worker atual.
+
+## Imagens
+
+A API nunca recebe upload de imagem e nunca devolve bytes de imagem.
+
+Ela devolve somente image_url.

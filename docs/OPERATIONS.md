@@ -1,282 +1,208 @@
-# Operação, configuração e deploy
+# Operação e deploy
 
-## Requisitos
+Este documento descreve produção em Cloudflare.
 
-- Python 3.11+;
-- nenhuma dependência Python externa;
-- Node é usado na CI apenas para `node --check` dos JavaScripts.
+Para o backend Python local, consulte LEGACY_PYTHON.md.
 
-## Desenvolvimento local
+## Endereço atual
 
-`scripts/dev.sh`:
+https://mana-ponte.vsxk.workers.dev
 
-1. usa `set -euo pipefail`;
-2. descobre a raiz a partir da própria localização;
-3. muda para a raiz;
-4. executa `python3 -m app.seed`;
-5. usa `exec python3 -m app.server`.
+## Serviços usados
 
-O seed é executado em toda inicialização de desenvolvimento, mas é idempotente quando `reset` não é solicitado.
+- Cloudflare Workers
+- Cloudflare Static Assets
+- Cloudflare D1
+- GitHub Actions
+- Scryfall como fonte externa de catálogo/imagens
 
-Padrão:
+Não há Oracle VPS na rota de produção.
 
-```text
-host = 127.0.0.1
-port = 8000
-```
+Não há R2 nem Cloudflare Images.
 
-Variáveis:
+## Configuração Wrangler
 
-- `MANAPONTE_HOST`;
-- `MANAPONTE_PORT`.
+Arquivo:
 
-## Variáveis de ambiente
+cloudflare-worker/wrangler.jsonc
 
-### Banco
+Configura:
 
-- `MANAPONTE_CARDS_DB_PATH`;
-- `MANAPONTE_ACCOUNTS_DB_PATH`;
-- `MANAPONTE_LISTINGS_DB_PATH`;
-- `MANAPONTE_DB_PATH` para modo legado.
+- Worker mana-ponte;
+- entrypoint src/index.js;
+- Static Assets em ../public;
+- binding ASSETS;
+- /api/* executado primeiro pelo Worker;
+- binding D1 DB;
+- database_name manaponte.
 
-### Catálogo
+O database_id no Git é placeholder. O CI o substitui temporariamente pelo ID real.
 
-- `MANAPONTE_REMOTE_SEARCH`.
+## Secrets do GitHub
 
-A busca remota fica habilitada por padrão.
+Obrigatórios:
 
-Valores que desligam:
+- CLOUDFLARE_API_TOKEN
+- CLOUDFLARE_ACCOUNT_ID
 
-- `0`;
-- `false`;
-- `no`;
-- `off`.
+O token Cloudflare precisa conseguir:
 
-A comparação é case-insensitive.
+- publicar Workers;
+- listar/criar/alterar D1.
 
-### Cookies/CORS
+Nunca versionar esses valores.
 
-- `MANAPONTE_ALLOWED_ORIGIN`;
-- `MANAPONTE_SECURE_COOKIES`;
-- `MANAPONTE_CROSS_SITE_COOKIES`.
+## Workflow de produção
 
-## Inicialização do servidor
+Arquivo:
 
-`app.server.main()` chama `init_db()` e depois `create_server()`.
+.github/workflows/cloudflare.yml
 
-`create_server()` também inicializa os bancos. Essa duplicação é intencionalmente idempotente.
+Dispara por:
 
-Para cada servidor é criada uma subclasse dinâmica de `ManaPonteHandler` com:
+- push em main quando public/** muda;
+- push quando cloudflare-worker/** muda;
+- alteração do próprio workflow;
+- workflow_dispatch.
 
-- caminhos de banco resolvidos;
-- flag de modo dividido;
-- um `LoginRateLimiter` próprio.
+Passos:
 
-Isso impede que servidores de testes compartilhem acidentalmente o limiter global.
+1. checkout;
+2. Node 22;
+3. validação dos secrets;
+4. remoção de whitespace acidental do Account ID;
+5. wrangler d1 list;
+6. criação de manaponte quando ausente;
+7. descoberta do database_id;
+8. patch local do wrangler.jsonc;
+9. aplicação de migrations;
+10. deploy do Worker e assets.
 
-## Catálogo local
+O database_id real não é commitado.
 
-### Importação default_cards
+## D1
 
-```bash
-python3 scripts/import_scryfall.py --download
-```
+Banco:
 
-ou:
+manaponte
 
-```bash
-python3 scripts/import_scryfall.py --file /caminho/arquivo
-```
+Migration atual:
 
-Esse script procura especificamente o bulk `default_cards`.
+cloudflare-worker/migrations/0001_initial.sql
 
-### Importação multilíngue
+Para novas mudanças, adicionar migration numerada. Não depender de ALTER manual no painel sem registrar a mudança no repositório.
 
-```bash
-python3 scripts/import_allcards.py --type all_cards
-```
+## Deploy manual
 
-O segundo script aceita qualquer tipo de bulk publicado pelo Scryfall.
+Em uma máquina autenticada com Wrangler, o fluxo equivalente é:
 
-Para o ManaPonte com pesquisa por nomes impressos/traduzidos, `all_cards` é o fluxo apropriado para preencher todas as impressões disponíveis em outros idiomas.
+    cd cloudflare-worker
+    npx wrangler@latest d1 list
+    npx wrangler@latest d1 migrations apply manaponte --remote
+    npx wrangler@latest deploy
 
-## Parser de Bulk Data
+O wrangler.jsonc precisa conter o database_id real no ambiente local ou ser ajustado antes do deploy.
 
-Formatos aceitos:
+## Healthcheck
 
-- JSONL;
-- array JSON;
-- gzip;
-- texto sem compressão;
-- UTF-8 com ou sem BOM.
+    GET /api/health
 
-Gzip é detectado pelos bytes mágicos `1f 8b`, não pela extensão.
+Deve indicar:
 
-JSONL é processado linha a linha.
+- service ManaPonte;
+- runtime cloudflare-workers-d1;
+- image_storage none.
 
-Array JSON usa buffer incremental de 64 KiB e `JSONDecoder.raw_decode`.
+## Catálogo externo
 
-O importador não precisa carregar o arquivo completo em memória.
+Scryfall é consultado somente para busca de metadados quando necessário.
 
-Batch padrão:
+O Worker não executa bulk import completo durante deploy.
 
-```text
-500 cartas
-```
-
-Entrada inválida, digital ou sem campos mínimos é ignorada e contabilizada.
-
-## Busca remota sob demanda
-
-A busca remota é uma camada de enriquecimento, não a base primária de leitura.
-
-Cache do processo:
-
-- máximo: 256 chaves;
-- TTL: 300 segundos;
-- chave: `(query, set_code, language)` normalizados em minúsculas;
-- política de capacidade: remove a entrada de menor idade registrada;
-- consultas idênticas concorrentes compartilham um `threading.Event`;
-- o fetcher é único por chave enquanto a chamada está em voo.
-
-Se o fetcher falhar:
-
-- a API registra uma mensagem no stdout;
-- os waiters são liberados;
-- resultado vazio pode ser cacheado durante o TTL;
-- a API continua com o catálogo local.
-
-O endpoint remoto limita paginação a 50 URLs distintas e também detecta repetição de `next_page`.
-
-## Scryfall search
-
-A query remota usa:
-
-```text
-name:"consulta" unique:prints
-```
-
-e adiciona, quando aplicável:
-
-- `set:<código>`;
-- `lang:<idioma>`.
-
-A URL inclui:
-
-- `include_extras=false`;
-- `include_multilingual=true`.
-
-Aspas digitadas pelo usuário são removidas antes de construir o operador `name:"..."`.
+Uma indisponibilidade do Scryfall não apaga o D1 e não impede resultados já persistidos.
 
 ## Imagens
 
-### Estado implementado
+Regra operacional: não armazenar imagens.
 
-O runtime usa `cards.image_url`, normalmente apontando para o Scryfall.
+Não provisionar:
 
-O backend não baixa nem serve automaticamente a coleção completa de imagens.
+- R2 para cartas;
+- Cloudflare Images;
+- banco de blobs;
+- volume de filesystem;
+- downloader de imagens em produção.
 
-`data/images/sample/` não é storage de produção.
+image_url é referência externa.
 
-### AVIF local
+## Observabilidade
 
-Os AVIFs convertidos ainda não possuem integração no código atual. Quando a camada local for implementada, deve ser tratada como um subsistema separado de arquivos estáticos, mantendo o banco apenas com chave/metadata e não blobs.
+wrangler.jsonc mantém observability.enabled=true.
 
-Até essa integração existir, copiar AVIFs para a VPS não altera o comportamento da aplicação por si só.
+O código usa:
+
+- console.log para falhas remotas recuperáveis;
+- console.error para exceções da API.
+
+Ainda não existem dashboards de negócio ou alertas versionados no repositório.
+
+## Erros
+
+Erro de validação:
+- JSON 400.
+
+Não autenticado:
+- JSON 401.
+
+CSRF inválido:
+- JSON 403.
+
+Conflito de cadastro:
+- JSON 409.
+
+Rate limit:
+- JSON 429.
+
+Erro de D1 detectado pelo dispatcher:
+- JSON 500.
+
+Erro de plataforma fora do contrato:
+- pode chegar como texto/HTML; frontend exibe "Resposta inesperada do servidor".
+
+## Rollback
+
+Código:
+- reverter o commit e deixar GitHub Actions publicar a versão anterior.
+
+Schema:
+- migrations D1 devem ser tratadas como mudanças persistentes; rollback de código não desfaz automaticamente schema/dados.
+
+Mudanças destrutivas precisam de plano de migração próprio.
+
+## Backup
+
+Ainda não existe workflow automático de backup/export do D1.
+
+Prioridade de backup:
+
+1. users;
+2. listings;
+3. wants;
+4. sessions, que são efêmeras;
+5. cards, reconstruível em grande parte via Scryfall.
 
 ## GitHub Pages
 
-Workflow: `.github/workflows/pages.yml`.
+.github/workflows/pages.yml continua publicando public/ quando Pages está habilitado.
 
-Dispara em:
+Isso é secundário. A aplicação completa usa o Worker.
 
-- push em `main`;
-- execução manual.
+## Desenvolvimento local
 
-Permissões:
+O caminho histórico continua:
 
-- `contents: read`;
-- `pages: write`;
-- `id-token: write`.
+    ./scripts/dev.sh
 
-Concorrência:
+Ele sobe Python + SQLite e não replica perfeitamente o ambiente Worker/D1.
 
-```text
-group: pages
-cancel-in-progress: true
-```
-
-O workflow consulta a API do GitHub para saber se Pages está habilitado.
-
-- HTTP 200: continua;
-- HTTP 404: gera notice e encerra os passos de deploy sem tornar a CI vermelha;
-- outro status: falha.
-
-Somente `public/` é empacotado.
-
-Nenhum banco SQLite, arquivo Python, teste ou documento é publicado pelo Pages.
-
-## Frontend no Pages + API externa
-
-Defina em `public/config.js`:
-
-```js
-window.MANAPONTE_API_BASE = "https://api.exemplo.com";
-```
-
-O backend precisa autorizar a origem exata e, para cookie cross-site, operar sobre HTTPS com:
-
-```text
-MANAPONTE_SECURE_COOKIES=1
-MANAPONTE_CROSS_SITE_COOKIES=1
-```
-
-## Logging
-
-O backend escreve logs de request e erros remotos em stdout.
-
-Não há atualmente:
-
-- logging estruturado;
-- rotação;
-- persistência de auditoria;
-- tracing;
-- métricas;
-- healthcheck profundo.
-
-## Backup e recuperação
-
-Não existe rotina automática de backup implementada no repositório.
-
-Uma operação real precisa tratar separadamente:
-
-- `cards.db` — reconstruível a partir do catálogo externo, embora custoso;
-- `accounts.db` — dados permanentes de usuário;
-- `listings.db` — anúncios e desejos.
-
-Contas e anúncios não devem ser tratados como dados descartáveis.
-
-## Produção
-
-O servidor Python atual é adequado a desenvolvimento/protótipo.
-
-Antes de exposição pública, a arquitetura deve colocar a aplicação atrás de HTTPS e de um servidor/proxy apropriado, além de resolver:
-
-- persistência de logs;
-- backup;
-- rate limiting compartilhado;
-- recuperação de senha;
-- verificação de e-mail;
-- moderação;
-- observabilidade;
-- estratégia de migrações formais;
-- banco apropriado para concorrência maior.
-
-## Falhas e degradação
-
-- Scryfall indisponível: busca local continua.
-- JSON local corrompido no `localStorage`: frontend ignora e começa vazio.
-- resposta não JSON da API: frontend mostra “Resposta inesperada do servidor”.
-- sessão expirada: `/api/auth/me` retorna 401 e a home volta ao estado anônimo.
-- banco bloqueado: SQLite aguarda até 10 segundos antes de falhar.
-- Pages não habilitado: workflow de Pages não falha por esse motivo.
+Use-o para desenvolvimento legado e testes existentes, não como prova de comportamento de produção.

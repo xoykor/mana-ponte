@@ -1,318 +1,161 @@
 # Arquitetura do frontend
 
-O frontend é HTML/CSS/JavaScript sem framework e vive em `public/`.
+O frontend vive em public/ e usa HTML, CSS e JavaScript sem framework.
 
-## Dois modos de execução
+## Produção
 
-### Modo API
+Na implantação principal, public/ é publicado como Cloudflare Static Assets junto do Worker.
 
-É usado quando:
+Fluxo:
 
-- a página está servida pelo backend Python sem `?static`; ou
-- `window.MANAPONTE_API_BASE` aponta para uma API externa.
+    navegador
+       |
+       +-- /, HTML, CSS, JS -> ASSETS
+       |
+       +-- /api/* ----------> Worker
+
+Como frontend e API compartilham a mesma origem, public/config.js mantém MANAPONTE_API_BASE vazio.
+
+## GitHub Pages
+
+O repositório ainda possui workflow de GitHub Pages.
+
+Pages deve ser tratado como demonstração/modo estático, não como produção principal.
+
+Quando hostname termina em github.io sem API configurada, o frontend entra em STATIC_MODE.
+
+## STATIC_MODE
+
+Ativado por:
+
+- parâmetro ?static;
+- github.io sem API_BASE;
+- protocolo file: sem API_BASE.
 
 Nesse modo:
 
-- autenticação é real;
-- anúncios são compartilhados;
-- desejos e matches funcionam;
-- perfis públicos e página individual de anúncio funcionam;
-- buscas usam a API.
+- cards vêm de public/data/cards.json;
+- listings iniciais vêm de public/data/listings.json;
+- anúncios criados ficam apenas em localStorage;
+- não existe sessão compartilhada;
+- autenticação real não existe;
+- wants/matches reais não existem.
 
-### Modo estático
+Chave local:
 
-É ativado quando:
-
-- existe `?static` na URL; ou
-- não há `MANAPONTE_API_BASE` e o host termina em `github.io`; ou
-- não há API e o protocolo é `file:`.
-
-Nesse modo:
-
-- catálogo de demonstração vem de `public/data/cards.json`;
-- anúncios iniciais vêm de `public/data/listings.json`;
-- novos anúncios ficam em `localStorage`;
-- não existe conta real;
-- não existem desejos/matches compartilhados;
-- perfil público e detalhe de anúncio que exigem API não funcionam como experiência completa.
-
-A chave de anúncios locais é:
-
-```text
 manaponte-demo-listings
-```
 
-JSON inválido no `localStorage` é tratado como lista vazia.
+## API mode
 
-## Configuração da API
+No Worker de produção:
 
-`public/config.js` define:
+- STATIC_MODE é falso;
+- chamadas /api/* permanecem same-origin;
+- credentials: include é usado;
+- cookies HttpOnly são enviados automaticamente.
 
-```js
-window.MANAPONTE_API_BASE = "";
-```
+## Páginas
 
-O valor é normalizado removendo barras finais.
-
-Somente caminhos que começam com `/api/` recebem o prefixo da API externa. Arquivos estáticos continuam relativos ao site atual.
-
-Todas as chamadas de API usam:
-
-```js
-credentials: "include"
-```
-
-para permitir cookie de sessão.
-
-## Páginas e scripts
-
-### `index.html`
-
-Scripts, nesta ordem:
-
-1. `config.js`;
-2. `card-preview.js`;
-3. `card-autocomplete.js`;
-4. `card-picker.js`;
-5. `app.js`.
+### index.html
 
 Responsabilidades:
 
-- busca inicial;
-- vitrine resumida;
-- login/cadastro;
+- busca;
+- vitrine;
+- cadastro/login;
 - criação/edição de anúncio;
-- área “Minha conta”;
+- área autenticada;
 - perfil;
 - desejos;
 - matches.
 
-Dialogs:
+Scripts principais:
 
-- `modal`: anúncio;
-- `authModal`: login/cadastro;
-- `accountModal`: área autenticada;
-- `wantModal`: novo desejo.
+- config.js
+- card-preview.js
+- card-autocomplete.js
+- card-picker.js
+- app.js
 
-### `anuncios.html`
+### anuncios.html
 
-Scripts:
+Página dedicada de busca/filtros.
 
-1. `config.js`;
-2. `page-common.js`;
-3. `card-preview.js`;
-4. `card-autocomplete.js`;
-5. `listings-page.js`.
+Usa:
 
-A página sincroniza os filtros com a query string usando `history.replaceState`.
+- page-common.js
+- listings-page.js
+- autocomplete
+- preview
 
-No modo API, pagina em blocos de 24.
+Filtros são sincronizados com a query string.
 
-No modo estático, filtra e ordena todos os registros no navegador e apresenta uma única página lógica.
+### perfil.html
 
-### `perfil.html`
+Recebe user via query string.
 
-Scripts:
+Mostra identidade pública, localização, contato opcional, anúncios e desejos.
 
-1. `config.js`;
-2. `page-common.js`;
-3. `card-preview.js`;
-4. `profile-page.js`.
+### anuncio.html
 
-Exige API.
+Recebe id via query string.
 
-O id vem de `?user=<id>`.
+Mostra impressão, preço, condição, modalidade, descrição e vendedor.
 
-Mostra:
+## Comunicação HTTP
 
-- display name;
-- username;
-- localização;
-- mês/ano de entrada;
-- contagem de anúncios;
-- contagem de desejos;
-- telefone/WhatsApp quando disponível;
-- anúncios;
-- desejos.
+app.js e page-common.js usam fetch com credentials: include.
 
-### `anuncio.html`
+getJson valida Content-Type.
 
-Scripts:
+Se a API devolver JSON com status de erro, a mensagem error é exibida.
 
-1. `config.js`;
-2. `page-common.js`;
-3. `card-preview.js`;
-4. `listing-detail.js`.
+Se a resposta não for JSON, a interface mostra:
 
-Exige API.
+"Resposta inesperada do servidor"
 
-O id vem de `?id=<id>`.
+Isso normalmente indica erro fora do contrato da API, por exemplo página de erro da plataforma.
 
-Mostra impressão, condição, modalidade, preço, descrição, data e dados públicos do vendedor.
+## Busca de cartas
 
-## `page-common.js`
+card-picker.js mantém:
 
-Expõe `window.ManaPontePage` com:
+- debounce;
+- AbortController;
+- request id monotônico;
+- paginação;
+- carta selecionada.
 
-- `API_BASE`;
-- `STATIC_MODE`;
-- `apiUrl()`;
-- `getJson()`;
-- `esc()`;
-- `money()`;
-- `formatPhone()`;
-- `phoneHref()`;
-- `whatsappHref()`.
+No modo API envia q, lang, page e limit.
 
-`getJson()` rejeita respostas que não tenham Content-Type JSON e transforma erros HTTP em `Error` com `status`.
+catalog.js no Worker pode enriquecer o D1 via Scryfall.
 
-## Escaping
+## Imagens
 
-Strings interpoladas em HTML passam por `esc()`, que substitui:
+O frontend recebe image_url e atribui diretamente ao elemento img.
 
-- `&`;
-- `<`;
-- `>`;
-- aspas duplas;
-- aspas simples.
+Não há endpoint de imagem do ManaPonte.
 
-Campos atribuídos via `textContent` não precisam desse escape manual.
+Fluxo:
 
-## Busca e cancelamento
+    D1 -> image_url -> HTML img -> Scryfall
 
-### Vitrine da home
+card-preview.js apenas amplia a imagem remota já carregada.
 
-`loadListings()` mantém:
+## Segurança de renderização
 
-- contador incremental de requisição;
-- `AbortController` da chamada ativa.
+Conteúdo interpolado em HTML passa por esc() quando necessário.
 
-Uma nova busca aborta a anterior. Mesmo se uma resposta antiga chegar, ela é descartada quando o id da requisição não coincide.
+Links para WhatsApp usam noopener/noreferrer.
 
-### Card picker
+E-mail não é mostrado em perfis públicos.
 
-Cada instância mantém estado privado:
+O cookie de sessão não é acessível pelo JavaScript por ser HttpOnly.
 
-- carta selecionada;
-- resultados atuais;
-- timer de debounce;
-- `AbortController`;
-- id monotônico de requisição;
-- página seguinte;
-- flag `hasMore`.
+## Responsividade
 
-Regras:
+styles.css cobre layout geral.
 
-- menos de 2 caracteres não consulta;
-- debounce de 220 ms;
-- mudança de texto invalida a seleção antiga;
-- mudança de idioma também invalida a seleção;
-- paginação adiciona resultados;
-- respostas obsoletas são ignoradas.
+auth.css cobre autenticação e área de conta.
 
-No modo estático, a busca é feita em memória e considera:
-
-- `name`;
-- `printed_name`;
-- `set_code`;
-- `collector_number`;
-- idioma selecionado.
-
-No modo API, envia `q`, `lang`, `page` e `limit=20`.
-
-## Autocomplete leve
-
-`card-autocomplete.js` é separado do card picker.
-
-- mínimo de 2 caracteres;
-- debounce de 180 ms;
-- cancela fetch anterior;
-- solicita até 30 cartas;
-- reduz a até 12 nomes únicos;
-- prefere `printed_name`, depois `printedName`, depois `name`.
-
-Quando está em GitHub Pages sem API configurada, ele simplesmente não é ativado.
-
-## Visualização ampliada
-
-`card-preview.js` implementa um dialog global criado sob demanda.
-
-Qualquer `img[data-card-image]` pode abrir o preview:
-
-- clique;
-- Enter;
-- Espaço.
-
-O listener de clique usa capture e cancela propagação/navegação para que clicar na arte dentro de um link ou botão não execute a ação externa.
-
-## Busca da home
-
-O formulário da home não filtra apenas a grade atual. Ele monta a query string e navega para `anuncios.html`.
-
-Filtros enviados:
-
-- card;
-- set;
-- lang;
-- city;
-- state;
-- mode.
-
-`?static` é preservado quando foi explicitamente solicitado.
-
-## Criação de anúncio
-
-Em modo API:
-
-1. usuário precisa estar autenticado;
-2. card picker precisa ter uma impressão selecionada;
-3. preço digitado em reais é transformado em centavos;
-4. POST ou PATCH é escolhido conforme `editingListingId`;
-5. CSRF é enviado;
-6. vitrine e área da conta são recarregadas.
-
-Em modo estático:
-
-1. não exige autenticação real;
-2. cria um id com `Date.now()`;
-3. salva o anúncio no navegador;
-4. adiciona metadados demonstrativos de usuário/localização.
-
-## Área autenticada
-
-`app.js` mantém em memória:
-
-- `currentUser`;
-- `csrfToken`;
-- mapa de anúncios próprios por id;
-- seletores de carta;
-- estado da edição.
-
-`/api/auth/me` é usado na inicialização. HTTP 401 é tratado como “visitante não autenticado”, não como falha fatal.
-
-A área da conta recarrega anúncios próprios, desejos e matches a partir da API.
-
-## Telefone e WhatsApp
-
-O frontend:
-
-- formata números brasileiros comuns;
-- cria links `tel:`;
-- adiciona DDI 55 ao WhatsApp quando o usuário informou apenas DDD+número;
-- usa `encodeURIComponent` na mensagem.
-
-Links externos de WhatsApp usam `target="_blank"` e `rel="noopener noreferrer"`.
-
-## Nome traduzido
-
-O card picker e autocomplete já priorizam `printed_name`.
-
-Outras áreas ainda renderizam majoritariamente `name`. Isso é comportamento atual e não deve ser confundido com ausência de suporte de busca: o backend pesquisa ambos os campos.
-
-## CSS e responsividade
-
-`styles.css` contém layout geral, cards, grids, dialogs e páginas independentes.
-
-`auth.css` contém estilos da autenticação e área de conta.
-
-A validação visual histórica está em `e5-screenshots/`; o driver CDP não faz parte da CI atual.
+e5-screenshots/ contém validações visuais históricas, mas não faz parte da CI atual.

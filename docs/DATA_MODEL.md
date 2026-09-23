@@ -1,289 +1,241 @@
-# Modelo de dados e persistência
+# Modelo de dados de produção
 
-## Topologia atual
+Produção usa Cloudflare D1, com schema definido em cloudflare-worker/migrations/0001_initial.sql.
 
-O modo padrão usa três arquivos SQLite:
+O backend Python possui outro modelo de persistência local. Consulte LEGACY_PYTHON.md para esse ambiente.
 
-```text
-data/cards.db
-  └─ cards
-  └─ schema_version
+## Topologia
 
-data/accounts.db
-  └─ users
-  └─ sessions
-  └─ schema_version
+Uma única base D1:
 
-data/listings.db
-  └─ listings
-  └─ wants
-  └─ schema_version
-```
+    manaponte
+      |-- cards
+      |-- users
+      |-- sessions
+      |-- listings
+      |-- wants
+      +-- login_attempts
 
-O banco de anúncios é aberto como banco principal e os outros dois são anexados:
+PRAGMA foreign_keys = ON é aplicado pela migration.
 
-```text
-catalog  -> cards.db
-accounts -> accounts.db
-main     -> listings.db
-```
+## cards
 
-Isso permite JOINs de leitura entre os três arquivos.
-
-SQLite não aplica foreign keys entre bancos anexados. Por isso, `card_id` e `user_id` em `listings.db` não possuem FKs reais no modo dividido. A consistência é imposta pela aplicação antes das gravações.
-
-## Resolução de caminhos
-
-A prioridade de cada banco é:
-
-1. caminho explícito recebido pela função;
-2. variável de ambiente específica;
-3. caminho padrão.
-
-Variáveis:
-
-- `MANAPONTE_CARDS_DB_PATH`;
-- `MANAPONTE_ACCOUNTS_DB_PATH`;
-- `MANAPONTE_LISTINGS_DB_PATH`.
-
-O modo legado usa `MANAPONTE_DB_PATH` e um único arquivo.
-
-Se somente `MANAPONTE_DB_PATH` estiver definido e nenhuma variável específica existir, o servidor e o seed entram em modo legado.
-
-## Configuração de conexão
-
-Toda conexão criada por `get_connection()`:
-
-- cria o diretório pai se necessário;
-- usa timeout de 10 segundos;
-- define `row_factory = sqlite3.Row`;
-- executa `PRAGMA foreign_keys = ON`;
-- executa `PRAGMA busy_timeout = 10000`.
-
-Cada requisição abre conexões independentes. Não existe pool.
-
-## Tabela `cards`
-
-Uma linha representa uma impressão física.
+Uma linha representa uma impressão.
 
 Campos:
 
-- `id`: chave local inteira usada por anúncios/desejos;
-- `scryfall_id`: identificador estável da impressão no Scryfall, único;
-- `oracle_id`: identidade conceitual da carta, usada para agrupar reimpressões;
-- `name`: nome canônico/Oracle, normalmente inglês;
-- `printed_name`: nome realmente impresso na edição traduzida, opcional;
-- `set_code`;
-- `set_name`;
-- `collector_number`;
-- `language`;
-- `rarity`;
-- `image_url`;
-- `updated_at`.
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- scryfall_id: identificador único da impressão
+- oracle_id: identificador conceitual entre reimpressões
+- name: nome canônico
+- printed_name: nome impresso/localizado opcional
+- set_code
+- set_name
+- collector_number
+- language
+- rarity
+- image_url
+- updated_at
 
 Índices:
 
-- `name COLLATE NOCASE`;
-- `printed_name COLLATE NOCASE` criado pela migração v5;
-- `(set_code, language)`;
-- `oracle_id`.
+- name NOCASE
+- printed_name NOCASE
+- set_code + language
+- oracle_id
 
-### Identidade da carta
+### Identidades
 
-`cards.id` identifica uma linha local.
+cards.id:
+ID local do ManaPonte. Listings e wants referenciam este valor.
 
-`scryfall_id` identifica uma impressão específica.
+scryfall_id:
+Identifica uma impressão no Scryfall.
 
-`oracle_id` identifica a carta conceitual entre reimpressões.
+oracle_id:
+Permite considerar reimpressões da mesma carta no matching.
 
-Esses três IDs não são intercambiáveis.
+## Imagens
 
-### Nome canônico x nome impresso
+image_url é TEXT.
 
-Uma impressão traduzida pode ser armazenada como:
+Ela guarda uma referência externa; nunca bytes, base64 ou blob.
 
-```text
-name         = Lightning Bolt
-printed_name = Raio
-language     = pt
-```
+O schema não possui tabela de imagens.
 
-A busca aceita ambos os nomes. O nome impresso não substitui o nome canônico.
-
-## Tabela `users`
+## users
 
 Campos:
 
-- `id`;
-- `username`, único e NOCASE;
-- `email`, único e NOCASE;
-- `display_name`;
-- `phone`, opcional;
-- `city`;
-- `state`, exatamente 2 caracteres;
-- `password_hash`;
-- `email_verified`, 0 ou 1;
-- `created_at`;
-- `updated_at`.
-
-Índice de localização:
-
-```text
-(state, city)
-```
-
-O telefone é público quando preenchido. O e-mail não é exposto pelas rotas públicas.
-
-## Tabela `sessions`
-
-Campos:
-
-- `token_hash`: SHA-256 do token bruto, chave primária;
-- `user_id`;
-- `csrf_token`;
-- `created_at`: epoch em segundos;
-- `expires_at`: epoch em segundos.
-
-Índices:
-
-- `user_id`;
-- `expires_at`.
-
-O token bruto nunca é persistido.
-
-## Tabela `listings`
-
-Campos:
-
-- `id`;
-- `card_id`;
-- `user_id`;
-- `title`;
-- `description`;
-- `price_cents`, nulo ou >= 0;
-- `condition`: `NM|SP|MP|HP|DMG`;
-- `language`;
-- `mode`: `venda|troca|ambos`;
-- `contact_url`;
-- `created_at`.
-
-Índices:
-
-- `card_id`;
-- `mode`.
-
-### Coluna `language`
-
-Ela continua no schema por compatibilidade. Nas respostas e filtros atuais, a fonte de verdade é `cards.language`.
-
-Ao criar ou editar um anúncio, o servidor copia novamente o idioma da impressão para a coluna legada, evitando divergência nova.
-
-### `contact_url`
-
-Permanece no banco e no contrato por compatibilidade. A interface atual prioriza perfil público, telefone e WhatsApp.
-
-## Tabela `wants`
-
-Campos:
-
-- `id`;
-- `card_id`;
-- `user_id`;
-- `max_price_cents`;
-- `desired_condition`;
-- `desired_language`;
-- `mode`: `compra|troca|ambos`;
-- `created_at`.
-
-Restrição:
-
-```text
-UNIQUE(card_id, user_id)
-```
+- id
+- username, UNIQUE NOCASE
+- email, UNIQUE NOCASE
+- display_name
+- phone, opcional
+- city
+- state
+- password_hash
+- email_verified
+- created_at
+- updated_at
 
 Índice:
 
-- `card_id`.
+- state + city
 
-## Migrações
+E-mail é privado nas rotas públicas. Phone é público quando informado.
 
-Cada banco possui `schema_version`, mas as migrações são aplicadas por código e de forma idempotente.
+## sessions
 
-### v1
+Campos:
 
-Schemas iniciais.
+- token_hash: SHA-256 do token bruto
+- user_id: FK users(id), ON DELETE CASCADE
+- csrf_token
+- created_at: epoch
+- expires_at: epoch
 
-### v2 e v3 — autenticação
+Índices:
 
-A migração de contas garante:
+- user_id
+- expires_at
 
-- `password_hash`;
-- `email_verified`;
-- `updated_at`;
-- `phone`;
-- estrutura moderna de `sessions`.
+O token bruto nunca é persistido.
 
-Sessões são consideradas efêmeras. Se uma tabela antiga de sessões tiver estrutura incompatível, ela pode ser descartada e recriada.
+## listings
 
-Dados permanentes de usuário são migrados com `ALTER TABLE` quando possível.
+Campos:
 
-### v4 — desejos
+- id
+- card_id: FK cards(id)
+- user_id: FK users(id), ON DELETE CASCADE
+- title
+- description
+- price_cents
+- condition
+- language
+- mode
+- contact_url
+- created_at
 
-Adiciona `desired_language` a `wants`.
+Condições:
 
-### v5 — catálogo
+- NM
+- SP
+- MP
+- HP
+- DMG
 
-Adiciona `printed_name` e cria o índice de nome impresso.
+Modalidades:
 
-## Modo legado
+- venda
+- troca
+- ambos
 
-`app/schema.sql` mantém todas as tabelas no mesmo arquivo.
+Índices:
 
-O modo legado existe para:
+- card_id
+- user_id
+- mode
+- created_at
 
-- instalações antigas;
-- testes que passam um caminho único;
-- consumidores que ainda dependem de `data/app.db`.
+language existe por compatibilidade, mas o runtime deriva o idioma efetivo de cards.
 
-No banco único, FKs locais podem ser aplicadas normalmente.
+contact_url permanece no schema por compatibilidade, porém o fluxo atual de criação não depende dele.
 
-O caminho novo deve continuar sendo preferido.
+## wants
 
-## Seed
+Campos:
 
-`app.seed` é determinístico e sem rede.
+- id
+- card_id: FK cards(id)
+- user_id: FK users(id), ON DELETE CASCADE
+- max_price_cents
+- desired_condition
+- desired_language
+- mode
+- created_at
 
-No modo dividido:
+Modalidades:
 
-1. inicializa os três schemas;
-2. abre os três bancos;
-3. insere/atualiza cartas de demonstração;
-4. insere/atualiza usuários;
-5. resolve os IDs locais das cartas por `scryfall_id`;
-6. insere/atualiza anúncios;
-7. cria o desejo de demonstração se ainda não existir.
+- compra
+- troca
+- ambos
 
-Sem `reset`, o seed é idempotente e não apaga um catálogo importado.
+Restrição:
 
-Com `reset=True`, limpa os dados de demonstração/estado nas tabelas envolvidas antes de recriar fixtures.
+UNIQUE(card_id, user_id)
 
-A senha `ManaPonte!2026` é exclusivamente fixture de desenvolvimento.
+Índices:
 
-## Transações e consistência
+- card_id
+- user_id
 
-- Importação de catálogo faz batches e um commit final; exceção gera rollback.
-- Cadastro faz commit do usuário antes de criar a sessão.
-- Operações de anúncio/desejo fazem commit antes da resposta.
-- Não existe transação distribuída entre os três arquivos.
-- Cross-database invariants são verificadas em código.
-- Não há replicação, journaling customizado, backup automático nem migração online implementada.
+## login_attempts
 
-## Estratégia de imagens no estado atual
+Rate limiting persistente.
 
-A tabela armazena `image_url`.
+Campos:
 
-O runtime atual usa essas URLs diretamente no frontend.
+- key: SHA-256 de IP + identificador
+- failures
+- window_started
+- blocked_until
 
-`data/images/sample/` contém apenas amostras e não participa da resolução de imagens da aplicação.
+Essa tabela substitui o limiter em memória usado pelo backend Python legado.
 
-Portanto, os AVIFs locais ainda não estão ligados ao caminho de execução. Uma futura camada de storage local deve preservar o princípio de não gravar blobs no SQLite e resolver um identificador de imagem para uma URL pública.
+## Seed inicial
+
+A migration 0001 contém um pequeno conjunto de cartas para que o sistema não nasça totalmente vazio.
+
+Essas linhas armazenam metadados e URLs externas do Scryfall.
+
+O seed não representa catálogo completo.
+
+## Crescimento do catálogo
+
+O catálogo cresce sob demanda.
+
+Fluxo:
+
+1. usuário busca carta;
+2. D1 é consultado;
+3. quando há poucos resultados e q possui 3+ caracteres, Scryfall é consultado;
+4. resultados são normalizados;
+5. INSERT ... ON CONFLICT(scryfall_id) atualiza os metadados;
+6. a resposta é relida do D1.
+
+O Worker limita a 100 cartas remotas por chamada.
+
+## Migrations
+
+Diretório:
+
+cloudflare-worker/migrations/
+
+Deploy aplica:
+
+    wrangler d1 migrations apply manaponte --remote
+
+Novas alterações estruturais devem usar migrations adicionais, por exemplo:
+
+    0002_nome_da_mudanca.sql
+
+Não editar silenciosamente a migration já aplicada para mudanças futuras de produção.
+
+## Integridade
+
+D1 possui foreign keys no schema de produção.
+
+A aplicação também valida recursos antes de gravar:
+
+- card_id precisa existir;
+- ownership é validado por user_id da sessão;
+- enumerações são validadas em JavaScript;
+- preços precisam ser inteiros não negativos quando armazenados em centavos.
+
+## Backup
+
+O repositório ainda não implementa rotina automática de export/backup do D1.
+
+Dados de contas, anúncios e desejos devem ser considerados permanentes. O catálogo de cartas é reconstruível a partir do Scryfall, mas os dados comunitários não são.

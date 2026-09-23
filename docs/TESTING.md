@@ -1,157 +1,114 @@
-# Testes e contratos verificados
+# Testes e contratos
 
-A suíte usa `unittest` e não depende de rede externa.
+A suíte atual possui duas realidades: código de produção Cloudflare e backend Python legado.
 
-Comando:
+## CI atual
 
-```bash
-python3 -m unittest discover -s tests -v
-```
+Workflow:
 
-## CI
+.github/workflows/tests.yml
 
-Workflow: `.github/workflows/tests.yml`.
+Executa:
 
-Dispara em:
+- git diff --check;
+- node --check em JavaScript do frontend;
+- unittest Python.
 
-- push para `main`;
-- pull request para `main`;
-- `workflow_dispatch`.
+## Limitação importante
 
-Etapas:
+A suíte Python foi criada antes da migração para Workers/D1.
 
-1. checkout com histórico completo;
-2. Python 3.11;
-3. `git diff --check origin/main...HEAD`;
-4. `node --check` dos JavaScripts;
-5. suíte offline Python.
+Ela continua útil para regras históricas e regressões do backend local, mas não valida diretamente:
 
-A CI não executa browser E2E atualmente.
+- cloudflare-worker/src/*.js;
+- comportamento real de D1;
+- PBKDF2 Web Crypto do Worker;
+- binding ASSETS;
+- wrangler;
+- migrations remotas;
+- limites/runtime Cloudflare.
 
-## `tests/test_api.py`
+Portanto, CI verde não significa cobertura completa da produção.
 
-Cobre servidor HTTP real em porta temporária, incluindo:
+## Testes Python existentes
 
-- pesquisa por `printed_name`;
-- cadastro e duplicidade;
-- login/logout;
+Cobrem, no runtime legado:
+
+- autenticação;
+- sessões;
 - CSRF;
 - rate limiting;
-- sessão expirada;
-- criação de anúncio;
-- ownership em edição/remoção;
-- perfil público sem vazamento de dados privados;
-- navegação de matches para usuário;
-- idioma derivado da impressão;
-- semântica de `ambos`;
-- CRUD de desejos;
-- condição mínima no matching;
-- preflight CORS;
-- rotas públicas;
-- fallback/enriquecimento remoto persistido localmente;
-- filtros e ordenação;
-- matching por idioma;
-- estatísticas do perfil público.
+- catálogo;
+- Scryfall;
+- listings;
+- wants;
+- matches;
+- perfis;
+- migrações SQLite;
+- importadores;
+- cache remoto;
+- bancos divididos.
 
-## `tests/test_auth.py`
+Eles devem permanecer enquanto app/ continuar no repositório.
 
-Cobre:
+## JavaScript frontend
 
-- normalização;
-- validação de username/e-mail/senha;
-- salt aleatório do scrypt;
-- verificação de senha;
-- persistência apenas do hash do token;
-- CSRF;
-- expiração;
-- revogação.
+A CI executa node --check para scripts de public/.
 
-## `tests/test_catalog.py`
+Isso detecta erro de sintaxe, não comportamento.
 
-Cobre:
+## Worker
 
-- normalização de carta física;
-- carta dupla-face;
-- descarte de digital;
-- `printed_name`;
-- upsert idempotente;
-- preservação do id local;
-- paginação remota do Scryfall;
-- `include_multilingual=true`.
+No estado atual, o Worker ainda precisa de uma suíte dedicada.
 
-## `tests/test_import_fixtures.py`
+Cobertura recomendada futura:
 
-Cobre:
+1. testes unitários de lib.js;
+2. autenticação com mock D1;
+3. roteamento;
+4. CRUD de listings;
+5. wants/matches;
+6. catalog fallback;
+7. migration em D1 local;
+8. integração Wrangler/Miniflare;
+9. browser E2E contra ambiente de preview.
 
-- array JSON;
-- JSONL;
-- gzip;
-- parser incremental;
-- proibição implícita de leitura integral do JSONL;
-- linhas inválidas;
-- relatório de ignoradas/inválidas;
-- preferência de variantes de imagem.
+## Produção
 
-## `tests/test_db.py`
+Não manter smoke tests que criem contas a cada deploy sem necessidade.
 
-Cobre:
+Testes contra produção devem ser explícitos, de baixa frequência e com limpeza controlada.
 
-- schema e seed;
-- idempotência;
-- migração de usuários;
-- migração de `printed_name`;
-- migração de `desired_language`;
-- preservação de dados.
+## Contratos críticos a preservar
 
-## `tests/test_integration_contracts.py`
+- nenhuma imagem armazenada;
+- user_id sempre derivado da sessão;
+- token bruto nunca persistido;
+- CSRF em mutações autenticadas;
+- cards.id local estável;
+- oracle_id usado para equivalência;
+- falha do Scryfall não destrói catálogo local;
+- rotas API retornam JSON para erros capturados.
 
-Cobre contratos que atravessam bancos:
+## Validação manual mínima após mudanças críticas
 
-- contato e idioma de anúncio;
-- paginação em modo dividido;
-- wants/matches entre arquivos;
-- perfil público cruzando contas, catálogo e anúncios;
-- limite de `contact_url`.
+- GET /api/health;
+- cadastro;
+- login;
+- logout;
+- busca de carta;
+- criar anúncio;
+- editar/excluir anúncio;
+- criar desejo;
+- visualizar perfil;
+- matching.
 
-## `tests/test_listings_pagination.py`
+## O que ainda não é garantido
 
-Cobre total e limites de paginação.
-
-## `tests/test_remote_cache.py`
-
-Cobre:
-
-- limite de capacidade;
-- evicção;
-- cache hit;
-- deduplicação concorrente;
-- liberação de waiters após falha;
-- expiração;
-- timeout de waiter;
-- validação de `contact_url`.
-
-## `tests/test_split_db.py`
-
-Cobre seed e JOIN cross-database.
-
-## Validação visual histórica
-
-`e5-screenshots/` contém evidências de uma rodada anterior de validação responsiva e de interação.
-
-`scripts/e5_cdp_driver.js` é um driver CDP auxiliar, mas não está na CI atual porque depende de ambiente/browser específico.
-
-## O que não está coberto automaticamente
-
-A suíte atual não garante:
-
-- disponibilidade real do Scryfall;
-- comportamento de produção sob carga;
-- integridade após queda abrupta de energia;
-- Nginx/Caddy/reverse proxy;
-- HTTPS real;
-- compatibilidade visual em todos os navegadores;
-- storage local de AVIF, pois ainda não está integrado;
-- backup/restauração;
-- performance com o catálogo completo em escala de produção.
-
-Esses itens devem ser tratados como riscos operacionais separados, não como propriedades já verificadas.
+- comportamento sob carga;
+- restauração de D1;
+- disponibilidade do Scryfall;
+- compatibilidade visual ampla;
+- limites reais do plano Cloudflare ao longo do tempo;
+- observabilidade/alertas;
+- segurança ofensiva.
