@@ -1,3 +1,8 @@
+"""Testes de paginação dos anúncios.
+
+Estes testes não exercitam diretamente o Worker de produção.
+"""
+
 """Valida paginacao de ofertas (Etapa 3 item 6)."""
 
 import http.client

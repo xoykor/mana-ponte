@@ -1,3 +1,8 @@
+"""Testes do modo SQLite dividido em vários arquivos.
+
+Estes testes não exercitam diretamente o Worker de produção.
+"""
+
 """Testes do armazenamento separado do catálogo, contas e ofertas."""
 
 import tempfile

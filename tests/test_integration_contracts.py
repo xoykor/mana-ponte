@@ -1,3 +1,8 @@
+"""Testes que atravessam vários módulos/bancos legados.
+
+Estes testes não exercitam diretamente o Worker de produção.
+"""
+
 """Contratos entre API, bancos separados e a vitrine pública."""
 
 import http.client

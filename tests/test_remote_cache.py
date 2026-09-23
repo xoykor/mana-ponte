@@ -1,3 +1,8 @@
+"""Testes do cache de busca remota do backend Python.
+
+Estes testes não exercitam diretamente o Worker de produção.
+"""
+
 """Testes do cache de busca remota: limite, evicção e deduplicação em voo."""
 
 import threading
