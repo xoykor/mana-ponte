@@ -1,0 +1,30 @@
+name: Temporary Cloudflare Worker deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: contains(github.event.head_commit.message, '[temp-worker-deploy]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Deploy temporary Worker
+        working-directory: cloudflare-worker
+        shell: bash
+        run: |
+          set -o pipefail
+          npx --yes wrangler@latest deploy --temporary 2>&1 | tee deploy-output.txt
+      - name: Save deploy output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-temporary-deploy
+          path: cloudflare-worker/deploy-output.txt
+          if-no-files-found: ignore
