@@ -1,3 +1,15 @@
+"""Importador local do catálogo Scryfall.
+
+Fluxo:
+
+    descobrir URL do Bulk Data
+        -> baixar/abrir arquivo
+        -> catalog.import_file()
+        -> gravar SQLite
+
+Este script pertence ao backend Python local/legado, não ao deploy D1.
+"""
+
 #!/usr/bin/env python3
 """Importa o catálogo de cartas de papel publicado pelo Scryfall.
 

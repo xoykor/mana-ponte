@@ -1,3 +1,11 @@
+// CONFIGURAÇÃO DO CLOUDFLARE WORKER
+//
+// "main" aponta para o JavaScript que recebe as requisições.
+// "assets" publica a pasta public/.
+// "d1_databases" liga o nome DB ao banco D1.
+//
+// O database_id versionado é um placeholder.
+// O GitHub Actions descobre o ID real durante o deploy.
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "mana-ponte",

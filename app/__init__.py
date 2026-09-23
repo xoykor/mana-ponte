@@ -1,3 +1,9 @@
+"""Pacote Python legado/local do ManaPonte.
+
+Produção usa cloudflare-worker/src/. Este pacote permanece para
+desenvolvimento local, importadores e testes históricos.
+"""
+
 """Pacote principal do backend do ManaPonte.
 
 Os módulos deste pacote cuidam de persistência, autenticação, catálogo e

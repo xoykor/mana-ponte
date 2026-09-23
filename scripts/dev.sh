@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# Servidor local/legado do ManaPonte.
+#
+# Passos:
+#   1. descobre a raiz do projeto;
+#   2. aplica o seed local;
+#   3. inicia o servidor Python.
+#
+# Produção usa Cloudflare Worker + D1.
 
 # Faz o shell parar no primeiro erro, em variáveis não definidas e em falhas
 # dentro de pipelines. Isso evita iniciar um servidor parcialmente configurado.

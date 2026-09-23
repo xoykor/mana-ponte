@@ -1,3 +1,9 @@
+"""Importador local para tipos alternativos de Bulk Data do Scryfall.
+
+É uma variação de import_scryfall.py que permite escolher o tipo publicado
+pelo Scryfall, como all_cards.
+"""
+
 #!/usr/bin/env python3
 """Importa um bulk type arbitrário do Scryfall (ex.: all_cards).
 
