@@ -1,0 +1,89 @@
+name: Deploy ManaPonte to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+      - "cloudflare-worker/**"
+      - ".github/workflows/cloudflare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manaponte-cloudflare-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Check Cloudflare credentials
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
+      - name: Provision and bind D1
+        working-directory: cloudflare-worker
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --yes wrangler@latest d1 list --json > /tmp/d1-list.json
+
+          DB_ID="$(node - <<'NODE'
+          const fs = require("fs");
+          const list = JSON.parse(fs.readFileSync("/tmp/d1-list.json", "utf8"));
+          const row = list.find(item => item.name === "manaponte");
+          process.stdout.write(row ? String(row.uuid || row.id || row.database_id || "") : "");
+          NODE
+          )"
+
+          if [ -z "$DB_ID" ]; then
+            echo "Creating D1 database manaponte"
+            npx --yes wrangler@latest d1 create manaponte
+            npx --yes wrangler@latest d1 list --json > /tmp/d1-list.json
+            DB_ID="$(node - <<'NODE'
+          const fs = require("fs");
+          const list = JSON.parse(fs.readFileSync("/tmp/d1-list.json", "utf8"));
+          const row = list.find(item => item.name === "manaponte");
+          if (!row) process.exit(2);
+          process.stdout.write(String(row.uuid || row.id || row.database_id || ""));
+          NODE
+            )"
+          fi
+
+          test -n "$DB_ID" || { echo "Could not determine D1 database id"; exit 1; }
+
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs = require("fs");
+          const path = "wrangler.jsonc";
+          const config = JSON.parse(fs.readFileSync(path, "utf8"));
+          config.d1_databases[0].database_id = process.env.DB_ID;
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+          NODE
+
+      - name: Apply D1 migrations
+        working-directory: cloudflare-worker
+        run: npx --yes wrangler@latest d1 migrations apply manaponte --remote
+
+      - name: Deploy Worker and static assets
+        working-directory: cloudflare-worker
+        run: npx --yes wrangler@latest deploy
