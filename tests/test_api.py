@@ -1,3 +1,8 @@
+"""Testes HTTP do servidor Python legado.
+
+A suíte testa o backend Python legado/local, não o Worker de produção.
+"""
+
 """Testes de integração da API HTTP do ManaPonte."""
 
 import http.client

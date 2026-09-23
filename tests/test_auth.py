@@ -1,3 +1,8 @@
+"""Testes das regras de autenticação e sessão do runtime Python.
+
+A suíte testa o backend Python legado/local, não o Worker de produção.
+"""
+
 """Testes unitários das regras de autenticação e sessão."""
 
 import hashlib

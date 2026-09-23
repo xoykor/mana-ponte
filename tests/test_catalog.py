@@ -1,3 +1,8 @@
+"""Testes de normalização e catálogo Scryfall/SQLite.
+
+A suíte testa o backend Python legado/local, não o Worker de produção.
+"""
+
 """Testes de normalização, importação e busca remota do catálogo."""
 
 import io

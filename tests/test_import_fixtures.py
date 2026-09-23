@@ -1,3 +1,8 @@
+"""Testes dos formatos aceitos pelos importadores de catálogo.
+
+A suíte testa o backend Python legado/local, não o Worker de produção.
+"""
+
 """Valida as correcoes de importacao do catalogo (Etapa 2)."""
 
 import gzip

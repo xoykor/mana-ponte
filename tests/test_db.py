@@ -1,3 +1,8 @@
+"""Testes de schema, migração e inicialização dos bancos SQLite.
+
+A suíte testa o backend Python legado/local, não o Worker de produção.
+"""
+
 """Testes do schema SQLite e das migrações compatíveis."""
 
 import sqlite3
