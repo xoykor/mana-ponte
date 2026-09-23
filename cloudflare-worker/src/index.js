@@ -56,67 +56,67 @@ async function handleApi(request, env) {
     }
 
     if (method === "GET" && path === "/api/cards") {
-      return getCards(url, env);
+      return await getCards(url, env);
     }
 
     if (method === "GET" && path === "/api/sets") {
-      return getSets(env);
+      return await getSets(env);
     }
 
     if (method === "GET" && path === "/api/listings") {
-      return getListings(request, url, env);
+      return await getListings(request, url, env);
     }
 
     if (method === "GET" && /^\/api\/listings\/\d+$/.test(path)) {
-      return getListing(numericTail(path), env);
+      return await getListing(numericTail(path), env);
     }
 
     if (method === "GET" && path === "/api/wants") {
-      return getWants(request, url, env);
+      return await getWants(request, url, env);
     }
 
     if (method === "GET" && path === "/api/matches") {
-      return getMatches(request, url, env);
+      return await getMatches(request, url, env);
     }
 
     if (method === "GET" && /^\/api\/users\/\d+$/.test(path)) {
-      return getPublicUser(numericTail(path), env);
+      return await getPublicUser(numericTail(path), env);
     }
 
     if (method === "POST" && path === "/api/auth/register") {
-      return register(request, env);
+      return await register(request, env);
     }
 
     if (method === "POST" && path === "/api/auth/login") {
-      return login(request, env);
+      return await login(request, env);
     }
 
     if (method === "POST" && path === "/api/auth/logout") {
-      return logout(request, env);
+      return await logout(request, env);
     }
 
     if (method === "POST" && path === "/api/listings") {
-      return createListing(request, env);
+      return await createListing(request, env);
     }
 
     if (method === "POST" && path === "/api/wants") {
-      return createWant(request, env);
+      return await createWant(request, env);
     }
 
     if (method === "PATCH" && path === "/api/profile") {
-      return updateProfile(request, env);
+      return await updateProfile(request, env);
     }
 
     if (method === "PATCH" && /^\/api\/listings\/\d+$/.test(path)) {
-      return updateListing(request, numericTail(path), env);
+      return await updateListing(request, numericTail(path), env);
     }
 
     if (method === "DELETE" && /^\/api\/listings\/\d+$/.test(path)) {
-      return deleteListing(request, numericTail(path), env);
+      return await deleteListing(request, numericTail(path), env);
     }
 
     if (method === "DELETE" && /^\/api\/wants\/\d+$/.test(path)) {
-      return deleteWant(request, numericTail(path), env);
+      return await deleteWant(request, numericTail(path), env);
     }
 
     return json({ error: "Rota não encontrada" }, 404);
