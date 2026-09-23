@@ -7,7 +7,7 @@ export const BRAZIL_STATES = new Set([
   "PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
 ]);
 const SESSION_TTL = 7 * 24 * 60 * 60;
-const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_ITERATIONS = 100000;
 
 export function json(data, status = 200, extraHeaders = {}) {
   const headers = new Headers(extraHeaders);
