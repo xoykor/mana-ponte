@@ -1,13 +1,7 @@
-"""Conexões, schemas e migrações do SQLite legado.
-
-Este arquivo responde a três perguntas:
-
-1. Em qual arquivo SQLite cada tipo de dado fica?
-2. Como abrir conexões de forma consistente?
-3. Como atualizar bancos antigos sem apagar dados?
-
-Produção usa Cloudflare D1.
-"""
+# BANCO SQLITE LEGADO
+# --------------------
+# Este arquivo resolve caminhos, abre conexões e aplica migrações sem apagar
+# dados antigos. Produção usa Cloudflare D1.
 
 """Conexões, schemas e migrações incrementais do SQLite.
 

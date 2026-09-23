@@ -1,11 +1,7 @@
-"""Dados de demonstração do backend Python local.
-
-"Seed" significa preencher o banco com dados previsíveis para desenvolvimento
-e testes.
-
-O seed é pensado para ser idempotente: executá-lo de novo não deve multiplicar
-indefinidamente as mesmas fixtures.
-"""
+# SEED DO BACKEND PYTHON LOCAL
+# ----------------------------
+# "Seed" preenche o banco com dados previsíveis para desenvolvimento/testes.
+# A intenção é ser idempotente: rodar novamente não deve duplicar fixtures.
 
 """Dados demonstrativos determinísticos e sem acesso à rede.
 

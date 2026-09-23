@@ -1,23 +1,14 @@
-"""Servidor HTTP legado do ManaPonte.
-
-Este é o maior arquivo do runtime Python antigo.
-
-Ordem recomendada de leitura:
-
-1. Funções pequenas de validação/cache.
-2. LoginRateLimiter.
-3. ManaPonteHandler.do_GET/do_POST/do_PATCH/do_DELETE.
-   Esses métodos funcionam como roteador.
-4. Métodos de domínio:
-   - register/login/logout;
-   - get_cards/get_sets;
-   - get_listings/create_listing/...;
-   - get_wants/get_matches.
-5. create_server() e main().
-
-Produção NÃO passa por este arquivo. O runtime atual está em
-cloudflare-worker/src/.
-"""
+# SERVIDOR HTTP LEGADO DO MANAPONTE
+# ----------------------------------
+# Ordem recomendada de leitura:
+# 1. validações/cache;
+# 2. LoginRateLimiter;
+# 3. do_GET/do_POST/do_PATCH/do_DELETE (roteamento);
+# 4. métodos de autenticação, catálogo, anúncios e desejos;
+# 5. create_server() e main().
+#
+# Produção NÃO passa por este arquivo. O runtime atual está em
+# cloudflare-worker/src/.
 
 """Servidor HTTP, API REST e autenticação por sessão.
 

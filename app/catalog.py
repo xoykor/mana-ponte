@@ -1,15 +1,10 @@
-"""Catálogo de cartas do backend Python legado.
-
-Fluxo mental:
-
-    arquivo/API do Scryfall
-        -> normalize_card()
-        -> tupla local
-        -> SQLite
-
-O parser é incremental para não precisar colocar o catálogo inteiro na RAM.
-Produção usa D1 + cloudflare-worker/src/catalog.js.
-"""
+# CATÁLOGO DO BACKEND PYTHON LEGADO
+# ----------------------------------
+# Fluxo:
+# Scryfall -> normalize_card() -> tupla local -> SQLite.
+#
+# O parser é incremental para não carregar o catálogo inteiro em RAM.
+# Produção usa D1 + cloudflare-worker/src/catalog.js.
 
 """Normalização e importação do catálogo Scryfall.
 
