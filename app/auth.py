@@ -1,3 +1,20 @@
+"""Autenticação do backend Python legado.
+
+Ideias principais para quem está começando:
+
+1. Normalização:
+   e-mail e username são colocados em um formato previsível.
+2. Hash de senha:
+   a senha original nunca é salva; este runtime usa scrypt.
+3. Sessão:
+   o navegador recebe um token bruto e o banco guarda apenas o hash do token.
+4. CSRF:
+   operações mutáveis exigem um segundo token.
+
+Produção usa o Worker JavaScript; este módulo permanece para desenvolvimento
+local e testes históricos.
+"""
+
 """Identidade, senhas e sessões opacas do ManaPonte.
 
 O módulo não conhece HTTP. Ele recebe valores simples, valida credenciais e

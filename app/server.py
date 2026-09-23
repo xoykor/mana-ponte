@@ -1,3 +1,24 @@
+"""Servidor HTTP legado do ManaPonte.
+
+Este é o maior arquivo do runtime Python antigo.
+
+Ordem recomendada de leitura:
+
+1. Funções pequenas de validação/cache.
+2. LoginRateLimiter.
+3. ManaPonteHandler.do_GET/do_POST/do_PATCH/do_DELETE.
+   Esses métodos funcionam como roteador.
+4. Métodos de domínio:
+   - register/login/logout;
+   - get_cards/get_sets;
+   - get_listings/create_listing/...;
+   - get_wants/get_matches.
+5. create_server() e main().
+
+Produção NÃO passa por este arquivo. O runtime atual está em
+cloudflare-worker/src/.
+"""
+
 """Servidor HTTP, API REST e autenticação por sessão.
 
 O projeto usa apenas a biblioteca padrão do Python para manter o protótipo
@@ -252,6 +273,7 @@ def remote_cards(
     return found_cards
 
 
+# --- Proteção contra várias tentativas de login ---
 class LoginRateLimiter:
     """Rate limiter simples em memória para tentativas de login."""
 
@@ -403,6 +425,7 @@ def rows(cursor) -> list[dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 
+# --- Roteador HTTP e regras da API legada ---
 class ManaPonteHandler(BaseHTTPRequestHandler):
     """Handler HTTP com rotas da API e arquivos estáticos."""
 
@@ -604,6 +627,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
 
+    # GET normalmente lê dados sem alterá-los.
     def do_GET(self) -> None:
         """Despacha rotas GET da API ou serve um arquivo estático."""
 
@@ -642,6 +666,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             # Erros de parâmetros chegam ao cliente como HTTP 400.
             return self.send_json({"error": str(error)}, 400)
 
+    # POST normalmente cria algo ou executa uma ação.
     def do_POST(self) -> None:
         """Despacha rotas POST de autenticação e criação de ofertas."""
 
@@ -676,6 +701,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             return self.send_json({"error": str(error)}, 400)
 
+    # PATCH altera parcialmente um recurso existente.
     def do_PATCH(self) -> None:
         """Atualiza perfil ou anúncio pertencente ao usuário autenticado."""
 
@@ -699,6 +725,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             return self.send_json({"error": str(error)}, 400)
 
+    # DELETE remove um recurso.
     def do_DELETE(self) -> None:
         """Remove recursos mutáveis pertencentes ao usuário autenticado."""
 
@@ -745,6 +772,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         return self.send_json(self.auth_payload(session))
 
+    # --- Autenticação ---
     def register(self, data: dict) -> None:
         """Valida e cria uma conta, iniciando sua sessão."""
 
@@ -930,6 +958,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         refreshed = get_session(self.session_token(), self.accounts_path())
         return self.send_json(self.auth_payload(refreshed))
 
+    # --- Catálogo ---
     def get_cards(self) -> None:
         """Busca impressões locais e enriquece a busca pelo Scryfall.
 
@@ -1042,6 +1071,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
 
         return self.send_json({"sets": found})
 
+    # --- Anúncios ---
     def get_listings(self) -> None:
         """Retorna ofertas com filtros compartilháveis e ordenação explícita."""
 
@@ -1327,6 +1357,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             }
         )
 
+    # --- Desejos e matching ---
     def get_wants(self) -> None:
         """Lista os desejos do usuário autenticado."""
 
@@ -1830,6 +1861,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
             return self.send_json({"error": "Anúncio não encontrado"}, 404)
         return self.send_json({"message": "Anúncio removido"})
 
+    # --- Arquivos HTML/CSS/JS ---
     def serve_static(self, path: str) -> None:
         """Serve um arquivo de ``public/`` sem permitir sair do diretório."""
 
@@ -1857,6 +1889,7 @@ class ManaPonteHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+# --- Montagem e inicialização do servidor ---
 def create_server(
     host: str = "127.0.0.1",
     port: int = 8000,
