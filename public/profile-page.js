@@ -1,3 +1,10 @@
+/*
+ * PERFIL PÚBLICO
+ * ==============
+ *
+ * Lê ?user=ID, busca /api/users/ID e desenha dados públicos, anúncios e desejos.
+ */
+
 (function () {
   "use strict";
 
@@ -13,6 +20,7 @@
 
   const $ = selector => document.querySelector(selector);
 
+  /* Transforma a data do banco em formato amigável. */
   function formatDate(value) {
     if (!value) {
       return "—";
@@ -27,6 +35,7 @@
     }).format(date);
   }
 
+  /* Desenha os anúncios publicados pelo perfil. */
   function renderListings(listings) {
     const entries = Array.isArray(listings) ? listings : [];
 
@@ -71,6 +80,7 @@
     }).join("");
   }
 
+  /* Desenha as cartas procuradas pelo perfil. */
   function renderWants(wants) {
     const entries = Array.isArray(wants) ? wants : [];
     if (!entries.length) {
@@ -103,6 +113,7 @@
     `).join("");
   }
 
+  /* Busca o perfil da URL e preenche a página. */
   async function loadProfile() {
     if (STATIC_MODE) {
       throw new Error(

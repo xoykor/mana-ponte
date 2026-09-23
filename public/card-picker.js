@@ -1,4 +1,12 @@
 /*
+ * SELETOR DE CARTAS
+ * =================
+ *
+ * Pesquisa cartas, mostra resultados e guarda qual impressão foi escolhida.
+ * O estado fica dentro de create(), então várias instâncias podem coexistir.
+ */
+
+/*
  * Componente de busca e seleção de uma impressão de carta.
  *
  * O componente não conhece o restante do formulário. Ele apenas recebe um
@@ -30,6 +38,7 @@
    * ``options.staticCards`` é usado pelo GitHub Pages. Quando ele é nulo, as
    * buscas vão para a rota indicada em ``options.source``.
    */
+  /* Cria uma instância independente do seletor. */
   function create(options) {
     const root = options.root;
 
@@ -63,6 +72,7 @@
     /**
      * Cancela buscas pendentes e invalida respostas que já estejam a caminho.
      */
+    /* Cancela/ignora pesquisa antiga quando o texto muda. */
     function invalidatePendingRequest() {
       clearTimeout(timer);
       timer = null;
@@ -79,6 +89,7 @@
     /**
      * Nome visível da impressão; prioriza a tradução quando disponível.
      */
+    /* Escolhe o melhor nome para mostrar. */
     function displayName(card) {
       return card?.printed_name || card?.printedName || card?.name || "Carta";
     }
@@ -87,6 +98,7 @@
     /**
      * Produz a identificação curta exibida para uma impressão.
      */
+    /* Monta o texto completo de uma opção. */
     function label(card) {
       const set = String(card.set_code || card.setCode || "").toUpperCase();
       const number = card.collector_number || card.collectorNumber || "";
@@ -101,6 +113,7 @@
     /**
      * Encaminha a ampliação para o componente global compartilhado pelo site.
      */
+    /* Abre a imagem ampliada quando disponível. */
     function showZoom(card) {
       const image = card?.image_url || card?.imageUrl || "";
       if (!image) {
@@ -113,6 +126,7 @@
     /**
      * Atualiza a área que mostra a carta escolhida e o input escondido.
      */
+    /* Atualiza a interface após selecionar uma carta. */
     function renderSelected() {
       if (!selectedCard) {
         selectedView.hidden = true;
@@ -139,6 +153,7 @@
     /**
      * Desenha resultados novos ou acrescenta uma página à lista existente.
      */
+    /* Desenha os resultados da pesquisa. */
     function renderResults(cards, message, append = false) {
       // Quando ``append`` é verdadeiro, preservamos os resultados anteriores.
       resultCards = append ? resultCards.concat(cards) : cards;
@@ -221,6 +236,7 @@
     /**
      * Marca uma carta como escolhida e limpa a lista de resultados.
      */
+    /* Marca uma impressão como escolhida. */
     function select(card) {
       invalidatePendingRequest();
       selectedCard = card || null;
@@ -260,6 +276,7 @@
     /**
      * Remove a seleção atual e devolve o campo ao estado inicial.
      */
+    /* Limpa seleção e estado visual. */
     function clear() {
       invalidatePendingRequest();
       selectedCard = null;
@@ -283,6 +300,7 @@
     /**
      * Filtra os cards que já estão na memória em modo estático.
      */
+    /* Pesquisa cartas em memória no modo estático. */
     function staticSearch(query) {
       const normalized = query.toLocaleLowerCase();
       const requestedLanguage = String(language?.value || "").toLowerCase();
@@ -302,6 +320,7 @@
     /**
      * Busca uma página no catálogo remoto ou no catálogo estático.
      */
+    /* Pesquisa cartas na API ou localmente. */
     async function searchCards({ page = 1, append = false } = {}) {
       const query = search.value.trim();
 

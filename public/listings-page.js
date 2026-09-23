@@ -1,3 +1,11 @@
+/*
+ * PÁGINA DE ANÚNCIOS
+ * ==================
+ *
+ * Lê filtros do formulário/URL, busca anúncios e desenha os resultados.
+ * No modo estático filtra dados locais; no modo API consulta /api/listings.
+ */
+
 (function () {
   "use strict";
 
@@ -21,6 +29,7 @@
   let total = 0;
   let staticListings = [];
 
+  /* Lê anúncios de demonstração do navegador. */
   function savedListings() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -29,6 +38,7 @@
     }
   }
 
+  /* Compara modalidade do anúncio com o filtro. */
   function listingModeMatches(itemMode, selectedMode) {
     if (!selectedMode) {
       return true;
@@ -42,6 +52,7 @@
     return itemMode === selectedMode;
   }
 
+  /* Preenche o filtro de estados. */
   function populateStates() {
     const select = $("#listingState");
     for (const state of STATES) {
@@ -52,6 +63,7 @@
     }
   }
 
+  /* Preenche o filtro de coleções. */
   function populateSets(source) {
     const select = $("#listingSet");
     const sets = [
@@ -70,6 +82,7 @@
     }
   }
 
+  /* Lê os filtros atuais. */
   function currentFilters() {
     return {
       card: $("#listingSearch").value.trim(),
@@ -85,6 +98,7 @@
     };
   }
 
+  /* Restaura filtros a partir da URL. */
   function applyFiltersFromUrl() {
     const params = new URLSearchParams(location.search);
 
@@ -128,6 +142,7 @@
     }
   }
 
+  /* Grava filtros na URL sem recarregar a página. */
   function syncUrlWithFilters() {
     const query = new URLSearchParams();
     Object.entries(currentFilters()).forEach(([key, value]) => {
@@ -148,6 +163,7 @@
     );
   }
 
+  /* Desenha resultados e paginação. */
   function render(entries, meta = {}) {
     const items = Array.isArray(entries) ? entries : [];
     total = Number(meta.total ?? items.length);
@@ -206,6 +222,7 @@
     }).join("");
   }
 
+  /* Carrega uma página de anúncios. */
   async function load(targetPage = 1) {
     $("#listingPageStatus").textContent = "Buscando anúncios…";
     const filters = currentFilters();
@@ -272,6 +289,7 @@
     }
   }
 
+  /* Prepara a página quando ela abre. */
   async function initialize() {
     populateStates();
 

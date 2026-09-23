@@ -1,4 +1,18 @@
 /*
+ * FRONTEND PRINCIPAL DA HOME
+ * ==========================
+ *
+ * Controla sessão, anúncios, formulários, desejos e matches.
+ *
+ * Para ler pela primeira vez:
+ *   1. funções pequenas;
+ *   2. loadSession(), loadListings() e loadAccountData();
+ *   3. event listeners no fim, que ligam botões às funções.
+ *
+ * "Renderizar" = transformar dados em elementos visíveis na página.
+ */
+
+/*
  * JavaScript principal da página pública do ManaPonte.
  *
  * Este arquivo coordena três grupos de responsabilidades:
@@ -29,6 +43,7 @@ const STATIC_MODE =
     (location.hostname.endsWith("github.io") || location.protocol === "file:")
   );
 
+/* Monta a URL final de uma rota da API. */
 function apiUrl(path) {
   return API_BASE && String(path).startsWith("/api/")
     ? `${API_BASE}${path}`
@@ -78,6 +93,7 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, character => ({
 }[character]));
 
 
+/* Descobre o código de idioma de um objeto de carta. */
 function cardLanguage(card) {
   return String(card?.language || card?.lang || "en").trim() || "en";
 }
@@ -89,6 +105,7 @@ function cardLanguage(card) {
  * Além de converter a resposta, esta função produz mensagens consistentes
  * quando o servidor responde HTML, erro HTTP ou JSON de erro da API.
  */
+/* Faz fetch, exige JSON e transforma erro HTTP em Error. */
 async function getJson(url, options) {
   const response = await fetch(apiUrl(url), {
     credentials: "include",
@@ -122,6 +139,7 @@ async function getJson(url, options) {
  * Um localStorage corrompido não deve impedir que o restante da página abra;
  * nesse caso começamos com uma lista vazia.
  */
+/* Lê anúncios de demonstração do localStorage. */
 function savedListings() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -136,6 +154,7 @@ function savedListings() {
  *
  * ``null`` representa uma oferta de troca ou uma proposta sem preço fixo.
  */
+/* Formata centavos como moeda brasileira. */
 function money(cents) {
   if (cents == null) {
     return "Proposta / troca";
@@ -151,6 +170,7 @@ function money(cents) {
 /**
  * Desenha a lista de ofertas depois que os filtros terminam de carregar.
  */
+/* Transforma anúncios em cards visíveis na home. */
 function renderListings(listings, pagination = {}) {
   const entries = Array.isArray(listings) ? listings : [];
   const rawTotal = Number(pagination.total);
@@ -249,6 +269,7 @@ function renderListings(listings, pagination = {}) {
 /**
  * Lê os filtros que o visitante escolheu na busca da vitrine.
  */
+/* Lê os filtros escolhidos no formulário. */
 function filters() {
   return {
     card: $("#search").value.trim(),
@@ -264,6 +285,7 @@ function filters() {
 /**
  * "Ambos" representa uma oferta compatível com venda e com troca.
  */
+/* Compara a modalidade de um anúncio com o filtro. */
 function listingModeMatches(itemMode, selectedMode) {
   if (!selectedMode) {
     return true;
@@ -284,6 +306,7 @@ function listingModeMatches(itemMode, selectedMode) {
  * No modo estático filtramos os JSONs diretamente no navegador. No modo
  * completo enviamos os mesmos filtros para a API do servidor.
  */
+/* Busca uma página de anúncios e chama renderListings(). */
 async function loadListings({ page = 1 } = {}) {
   $("#status").textContent = "Buscando na comunidade…";
 
@@ -360,6 +383,7 @@ async function loadListings({ page = 1 } = {}) {
 }
 
 
+/* Preenche os seletores de UF. */
 function populateBrazilStates() {
   document.querySelectorAll("[data-brazil-states]").forEach(select => {
     const selected = select.value;
@@ -381,6 +405,7 @@ function populateBrazilStates() {
 /**
  * Preenche o filtro de coleções e inicializa os seletores de cartas.
  */
+/* Carrega dados de demonstração no modo estático. */
 function populateCatalog() {
   // A API fornece uma lista completa de sets. O fallback usa os cards já
   // carregados para manter a demonstração funcionando com arquivos estáticos.
@@ -420,6 +445,7 @@ function populateCatalog() {
 /**
  * Atualiza a parte visual da página que depende da sessão autenticada.
  */
+/* Atualiza usuário e token CSRF mantidos em memória. */
 function setAuth(data) {
   currentUser = data?.user || null;
   csrfToken = data?.csrf_token || null;
@@ -445,6 +471,7 @@ function setAuth(data) {
 /**
  * Descobre se já existe uma sessão no backend.
  */
+/* Pergunta à API se existe uma sessão válida. */
 async function loadSession() {
   if (STATIC_MODE) {
     setAuth(null);
@@ -468,6 +495,7 @@ async function loadSession() {
 /**
  * Carrega os dados iniciais adequados ao ambiente atual.
  */
+/* Carrega os dados iniciais da home. */
 async function loadData() {
   populateBrazilStates();
 
@@ -560,6 +588,7 @@ const wantModal = $("#wantModal");
 /**
  * Abre um anúncio novo ou reutiliza o mesmo formulário para edição.
  */
+/* Prepara o formulário para criar um anúncio. */
 function openNewListing() {
   if (!STATIC_MODE && !currentUser) {
     $("#authStatus").textContent =
@@ -578,6 +607,7 @@ function openNewListing() {
   cardPicker?.focus();
 }
 
+/* Preenche o formulário para editar um anúncio. */
 function openListingForEdit(item) {
   editingListingId = item.id;
   const form = $("#listingForm");
@@ -702,6 +732,7 @@ $("#listingForm").addEventListener("submit", async event => {
 
 // ---------- Área autenticada ----------
 
+/* Desenha os anúncios do usuário logado. */
 function renderAccountListings(listings) {
   const entries = Array.isArray(listings) ? listings : [];
   myListingsById = new Map(entries.map(item => [Number(item.id), item]));
@@ -771,6 +802,7 @@ function renderAccountListings(listings) {
   });
 }
 
+/* Desenha as cartas que o usuário procura. */
 function renderWants(wants) {
   const entries = Array.isArray(wants) ? wants : [];
   if (!entries.length) {
@@ -821,6 +853,7 @@ function renderWants(wants) {
   });
 }
 
+/* Desenha anúncios compatíveis com os desejos. */
 function renderMatches(matches) {
   const entries = Array.isArray(matches) ? matches : [];
   if (!entries.length) {
@@ -860,6 +893,7 @@ function renderMatches(matches) {
 
 
 
+/* Atualiza anúncios próprios, desejos e matches. */
 async function loadAccountData() {
   if (!currentUser || STATIC_MODE) {
     return;

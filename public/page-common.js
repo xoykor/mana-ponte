@@ -1,4 +1,11 @@
 /*
+ * FUNÇÕES COMPARTILHADAS ENTRE PÁGINAS
+ * ====================================
+ *
+ * Reúne operações repetidas: URL da API, fetch JSON, dinheiro e telefone.
+ */
+
+/*
  * Utilidades das páginas públicas independentes do ManaPonte.
  */
 (function (global) {
@@ -19,12 +26,14 @@
       )
     );
 
+  /* Monta uma URL da API. */
   function apiUrl(path) {
     return API_BASE && String(path).startsWith("/api/")
       ? `${API_BASE}${path}`
       : path;
   }
 
+  /* Executa uma requisição e garante o contrato JSON. */
   async function getJson(path, options) {
     const response = await fetch(apiUrl(path), {
       credentials: "include",
@@ -58,6 +67,7 @@
     "'": "&#039;",
   }[character]));
 
+  /* Formata centavos como reais. */
   function money(cents) {
     if (cents == null) {
       return "Proposta / troca";
@@ -69,6 +79,7 @@
     }).format(cents / 100);
   }
 
+  /* Formata telefone para leitura. */
   function formatPhone(value) {
     const raw = String(value || "").trim();
     if (!raw) {
@@ -85,6 +96,7 @@
     return raw;
   }
 
+  /* Cria um link tel:. */
   function phoneHref(value) {
     const raw = String(value || "").trim();
     if (!raw) {
@@ -94,6 +106,7 @@
     return raw.startsWith("+") ? `tel:+${digits}` : `tel:${digits}`;
   }
 
+  /* Cria um link para conversa no WhatsApp. */
   function whatsappHref(value, message = "") {
     const raw = String(value || "").trim();
     if (!raw) {
