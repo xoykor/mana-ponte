@@ -1,4 +1,11 @@
 /*
+ * ESTILOS GERAIS DO MANAPONTE
+ *
+ * CSS descreve aparência, não regra de negócio.
+ * Leia por componentes: layout, cards, formulários, dialogs e responsividade.
+ */
+
+/*
  * Estilos principais da página pública.
  *
  * As cores e medidas compartilhadas ficam em variáveis para que um dev possa

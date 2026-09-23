@@ -1,3 +1,9 @@
+/*
+ * ESTILOS DE AUTENTICAÇÃO E ÁREA DA CONTA
+ *
+ * Complementa styles.css para login, cadastro e telas autenticadas.
+ */
+
 /* Controles de sessão no cabeçalho. */
 .auth-actions {
   display: flex;
