@@ -1,3 +1,13 @@
+-- MIGRATION INICIAL DO D1 DE PRODUÇÃO
+-- ====================================
+--
+-- Uma "migration" descreve como criar/evoluir a estrutura do banco.
+-- Este arquivo cria as tabelas usadas pelo Worker.
+--
+-- Regra importante: image_url guarda somente uma URL externa.
+-- Nenhum byte de imagem é armazenado no D1.
+--
+
 
 PRAGMA foreign_keys = ON;
 

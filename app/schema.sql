@@ -1,3 +1,6 @@
+-- SCHEMA LEGADO DE ARQUIVO ÚNICO
+-- Mantido para compatibilidade do backend Python. Produção usa D1.
+--
 -- Schema legado para instalações que ainda usam um único app.db.
 -- A aplicação nova usa schema_cards.sql, schema_accounts.sql e
 -- schema_listings.sql separadamente; este arquivo só serve para compatibilidade

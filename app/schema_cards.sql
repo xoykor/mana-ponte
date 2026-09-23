@@ -1,3 +1,6 @@
+-- CATÁLOGO DO SQLITE LEGADO
+-- image_url é somente texto com URL externa, nunca bytes de imagem.
+--
 -- O banco de cartas guarda uma linha por impressão física de uma carta.
 -- Pode ser executado várias vezes sem apagar dados.
 PRAGMA foreign_keys = ON;

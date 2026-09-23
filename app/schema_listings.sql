@@ -1,3 +1,6 @@
+-- ANÚNCIOS E DESEJOS DO SQLITE LEGADO
+-- Produção usa Cloudflare D1.
+--
 -- O banco de anúncios guarda ofertas (listings) e desejos (wants).
 -- Pode ser executado várias vezes sem apagar dados.
 PRAGMA foreign_keys = ON;
