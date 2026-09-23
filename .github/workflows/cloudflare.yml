@@ -40,6 +40,12 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
 
+          # Account IDs contain only simple ASCII characters. Removing accidental
+          # whitespace makes copied values from the dashboard safe for Wrangler.
+          CLEAN_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          test -n "$CLEAN_ACCOUNT_ID" || { echo "Invalid CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          echo "CLOUDFLARE_ACCOUNT_ID=$CLEAN_ACCOUNT_ID" >> "$GITHUB_ENV"
+
       - name: Provision and bind D1
         working-directory: cloudflare-worker
         shell: bash
