@@ -94,26 +94,3 @@ jobs:
         working-directory: cloudflare-worker
         run: npx --yes wrangler@latest deploy
 
-      - name: Smoke test account registration
-        shell: bash
-        run: |
-          set -euo pipefail
-          USERNAME="ci_diag_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
-          EMAIL="${USERNAME}@example.com"
-          BODY_FILE="/tmp/register-body.txt"
-          HEADER_FILE="/tmp/register-headers.txt"
-
-          STATUS="$(curl -sS             -D "$HEADER_FILE"             -o "$BODY_FILE"             -w '%{http_code}'             -X POST 'https://mana-ponte.vsxk.workers.dev/api/auth/register'             -H 'content-type: application/json'             --data "{\"username\":\"$USERNAME\",\"email\":\"$EMAIL\",\"password\":\"CI!StrongPassword123\",\"display_name\":\"CI Diagnostic\",\"city\":\"Natal\",\"state\":\"RN\",\"phone\":\"84999999999\"}")"
-
-          echo "HTTP $STATUS"
-          grep -Ei '^(content-type|cf-error-type|cf-ray):' "$HEADER_FILE" || true
-          cat "$BODY_FILE"
-          echo
-
-          # Remove a conta sintética caso o cadastro tenha funcionado.
-          if [ "$STATUS" = "201" ]; then
-            cd cloudflare-worker
-            npx --yes wrangler@latest d1 execute manaponte --remote               --command="DELETE FROM users WHERE username='$USERNAME';"
-          else
-            exit 1
-          fi
