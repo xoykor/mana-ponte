@@ -129,6 +129,7 @@ Ele usa SQLite local e não representa a arquitetura de produção atual. Consul
 ## Documentação
 
 - ARCHITECTURE.md — visão canônica da arquitetura.
+- docs/CODE_GUIDE.md — guia de leitura para quem está começando a programar.
 - docs/API.md — contrato HTTP do Worker.
 - docs/DATA_MODEL.md — D1 e modelo de dados.
 - docs/FRONTEND.md — frontend e Static Assets.
