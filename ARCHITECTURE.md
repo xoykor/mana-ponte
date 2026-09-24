@@ -129,8 +129,6 @@ Cinco falhas de login numa janela de 15 minutos bloqueiam a chave por 15 minutos
 
 Em produção, `MANAPONTE_API_BASE` fica vazio e `/api/*` é same-origin.
 
-O repositório também mantém um modo estático/demonstração para GitHub Pages.
-
 ## 11. CI/CD
 
 Deploy: `.github/workflows/cloudflare.yml`.

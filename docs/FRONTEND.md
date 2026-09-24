@@ -16,35 +16,6 @@ Fluxo:
 
 Como frontend e API compartilham a mesma origem, public/config.js mantém MANAPONTE_API_BASE vazio.
 
-## GitHub Pages
-
-O repositório ainda possui workflow de GitHub Pages.
-
-Pages deve ser tratado como demonstração/modo estático, não como produção principal.
-
-Quando hostname termina em github.io sem API configurada, o frontend entra em STATIC_MODE.
-
-## STATIC_MODE
-
-Ativado por:
-
-- parâmetro ?static;
-- github.io sem API_BASE;
-- protocolo file: sem API_BASE.
-
-Nesse modo:
-
-- cards vêm de public/data/cards.json;
-- listings iniciais vêm de public/data/listings.json;
-- anúncios criados ficam apenas em localStorage;
-- não existe sessão compartilhada;
-- autenticação real não existe;
-- wants/matches reais não existem.
-
-Chave local:
-
-manaponte-demo-listings
-
 ## API mode
 
 No Worker de produção:

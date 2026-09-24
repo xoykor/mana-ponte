@@ -80,8 +80,3 @@ Schema: rollback de código não desfaz migrations nem dados automaticamente.
 
 Ainda não existe backup automático do D1.
 
-## GitHub Pages
-
-`.github/workflows/pages.yml` publica o frontend estático quando Pages está habilitado.
-
-A aplicação completa usa o Worker.
