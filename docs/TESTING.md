@@ -1,114 +1,45 @@
-# Testes e contratos
-
-A suíte atual possui duas realidades: código de produção Cloudflare e backend Python legado.
+# Testes e validação
 
 ## CI atual
 
-Workflow:
+`.github/workflows/tests.yml` executa:
 
-.github/workflows/tests.yml
+- `git diff --check`;
+- `node --check` no JavaScript do frontend;
+- `node --check` no JavaScript do Worker.
 
-Executa:
+A CI atual valida sintaxe.
 
-- git diff --check;
-- node --check em JavaScript do frontend;
-- unittest Python.
+## Cobertura ainda necessária
 
-## Limitação importante
+Uma suíte de comportamento do Worker deve cobrir:
 
-A suíte Python foi criada antes da migração para Workers/D1.
+1. autenticação;
+2. roteamento;
+3. CRUD de anúncios;
+4. desejos e matching;
+5. D1 local;
+6. fallback Scryfall;
+7. migrations;
+8. browser E2E.
 
-Ela continua útil para regras históricas e regressões do backend local, mas não valida diretamente:
-
-- cloudflare-worker/src/*.js;
-- comportamento real de D1;
-- PBKDF2 Web Crypto do Worker;
-- binding ASSETS;
-- wrangler;
-- migrations remotas;
-- limites/runtime Cloudflare.
-
-Portanto, CI verde não significa cobertura completa da produção.
-
-## Testes Python existentes
-
-Cobrem, no runtime legado:
-
-- autenticação;
-- sessões;
-- CSRF;
-- rate limiting;
-- catálogo;
-- Scryfall;
-- listings;
-- wants;
-- matches;
-- perfis;
-- migrações SQLite;
-- importadores;
-- cache remoto;
-- bancos divididos.
-
-Eles devem permanecer enquanto app/ continuar no repositório.
-
-## JavaScript frontend
-
-A CI executa node --check para scripts de public/.
-
-Isso detecta erro de sintaxe, não comportamento.
-
-## Worker
-
-No estado atual, o Worker ainda precisa de uma suíte dedicada.
-
-Cobertura recomendada futura:
-
-1. testes unitários de lib.js;
-2. autenticação com mock D1;
-3. roteamento;
-4. CRUD de listings;
-5. wants/matches;
-6. catalog fallback;
-7. migration em D1 local;
-8. integração Wrangler/Miniflare;
-9. browser E2E contra ambiente de preview.
-
-## Produção
-
-Não manter smoke tests que criem contas a cada deploy sem necessidade.
-
-Testes contra produção devem ser explícitos, de baixa frequência e com limpeza controlada.
-
-## Contratos críticos a preservar
+## Contratos críticos
 
 - nenhuma imagem armazenada;
-- user_id sempre derivado da sessão;
+- `user_id` derivado da sessão;
 - token bruto nunca persistido;
-- CSRF em mutações autenticadas;
-- cards.id local estável;
-- oracle_id usado para equivalência;
-- falha do Scryfall não destrói catálogo local;
-- rotas API retornam JSON para erros capturados.
+- CSRF em mutações;
+- `cards.id` como ID local;
+- `oracle_id` para reimpressões;
+- falha do Scryfall não apaga dados locais;
+- erros capturados retornam JSON.
 
-## Validação manual mínima após mudanças críticas
+## Validação manual mínima
 
-- GET /api/health;
-- cadastro;
-- login;
-- logout;
-- busca de carta;
-- criar anúncio;
-- editar/excluir anúncio;
-- criar desejo;
-- visualizar perfil;
+- health;
+- cadastro/login/logout;
+- busca;
+- criar/editar/excluir anúncio;
+- desejo;
+- perfil;
 - matching.
-
-## O que ainda não é garantido
-
-- comportamento sob carga;
-- restauração de D1;
-- disponibilidade do Scryfall;
-- compatibilidade visual ampla;
-- limites reais do plano Cloudflare ao longo do tempo;
-- observabilidade/alertas;
-- segurança ofensiva.

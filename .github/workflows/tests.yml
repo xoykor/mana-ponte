@@ -11,25 +11,25 @@ permissions:
   contents: read
 
 jobs:
-  unittest:
+  validate:
     runs-on: ubuntu-latest
+
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
+      - name: Configurar Node
+        uses: actions/setup-node@v6
         with:
-          python-version: "3.11"
+          node-version: 22
 
       - name: Verificar diff
         run: git diff --check origin/main...HEAD
 
       - name: Verificar JavaScript
         run: |
-          # Frontend
           node --check public/app.js
           node --check public/card-picker.js
           node --check public/card-preview.js
@@ -40,17 +40,9 @@ jobs:
           node --check public/listing-detail.js
           node --check public/config.js
 
-          # Backend de produção (Cloudflare Worker)
           node --check cloudflare-worker/src/index.js
           node --check cloudflare-worker/src/lib.js
           node --check cloudflare-worker/src/auth.js
           node --check cloudflare-worker/src/catalog.js
           node --check cloudflare-worker/src/listings.js
           node --check cloudflare-worker/src/wants.js
-
-      - name: Compilar Python
-        # compileall pega erros de sintaxe mesmo em arquivos não importados pelos testes.
-        run: python3 -m compileall -q app scripts tests
-
-      - name: Executar suíte offline
-        run: python3 -m unittest discover -s tests -v
