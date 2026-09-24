@@ -2,8 +2,6 @@
 
 Produção usa Cloudflare D1, com schema definido em cloudflare-worker/migrations/0001_initial.sql.
 
-O backend Python possui outro modelo de persistência local. Consulte LEGACY_PYTHON.md para esse ambiente.
-
 ## Topologia
 
 Uma única base D1:
@@ -139,9 +137,9 @@ Modalidades:
 - mode
 - created_at
 
-language existe por compatibilidade, mas o runtime deriva o idioma efetivo de cards.
+Ao criar ou atualizar um anúncio, o runtime deriva o idioma da impressão em `cards`.
 
-contact_url permanece no schema por compatibilidade, porém o fluxo atual de criação não depende dele.
+`contact_url` é opcional e o fluxo atual de criação não depende dele.
 
 ## wants
 
@@ -181,8 +179,6 @@ Campos:
 - failures
 - window_started
 - blocked_until
-
-Essa tabela substitui o limiter em memória usado pelo backend Python legado.
 
 ## Seed inicial
 

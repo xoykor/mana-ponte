@@ -158,4 +158,3 @@ styles.css cobre layout geral.
 
 auth.css cobre autenticação e área de conta.
 
-e5-screenshots/ contém validações visuais históricas, mas não faz parte da CI atual.

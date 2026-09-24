@@ -1,9 +1,0 @@
-{
-  "target": "http://127.0.0.1:8097",
-  "cdpPort": 9222,
-  "outDir": "/home/x/Documentos/Estudo/Projetinho/mana-ponte/e5-screenshots",
-  "total": 23,
-  "passed": 23,
-  "failed": 0,
-  "failures": []
-}

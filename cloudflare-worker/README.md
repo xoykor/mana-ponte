@@ -13,8 +13,6 @@ Fonte externa:
 
 Scryfall, para metadados e URLs de imagens.
 
-Não existe proxy para Oracle.
-
 ## Arquivos
 
 - src/index.js — roteador e Static Assets.
@@ -104,6 +102,3 @@ Sessões:
 - cookie HttpOnly/Secure/SameSite=Lax;
 - CSRF separado.
 
-## Observação
-
-app/ não é chamado por este Worker. O backend Python existe apenas como runtime local/legado.
