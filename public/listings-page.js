@@ -179,8 +179,23 @@
     $("#listingPageNumber").textContent = `Página ${page} de ${pageCount}`;
 
     if (!items.length) {
-      $("#listingPageGrid").innerHTML =
-        '<p class="empty-state">Nenhum anúncio encontrado com esses filtros.</p>';
+      $("#listingPageGrid").innerHTML = `
+        <div class="empty-box empty-state">
+          <img
+            class="empty-mascot"
+            src="assets/mascot.svg"
+            alt=""
+            width="140"
+            height="79"
+            loading="lazy"
+            aria-hidden="true"
+          >
+          <div>
+            <strong>Nenhuma carta encontrada nesta caixa</strong>
+            <p>Nenhum anúncio encontrado com esses filtros. Tente limpar ou ajustar os campos acima.</p>
+          </div>
+        </div>
+      `;
       return;
     }
 

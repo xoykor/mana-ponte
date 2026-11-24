@@ -130,7 +130,7 @@
     const user = data.user;
     const stats = data.stats || {};
 
-    document.title = `${user.display_name} — ManaPonte`;
+    document.title = `${user.display_name} — My Trade Box`;
     $("#profilePageName").textContent = user.display_name;
     $("#profilePageHandle").textContent = `@${user.username}`;
     $("#profilePageLocation").textContent = `${user.city} / ${user.state}`;
@@ -149,7 +149,7 @@
       whatsapp.hidden = false;
       whatsapp.href = whatsappHref(
         phone,
-        `Olá, ${user.display_name}! Encontrei seu perfil no ManaPonte.`,
+        `Olá, ${user.display_name}! Encontrei seu perfil no My Trade Box.`,
       );
       $("#profilePageNoPhone").hidden = true;
     }

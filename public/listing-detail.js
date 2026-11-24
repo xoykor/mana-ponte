@@ -50,7 +50,7 @@
     const item = data.listing;
     const cardName = String(item.name || "Carta");
 
-    document.title = `${item.title || cardName} — ManaPonte`;
+    document.title = `${item.title || cardName} — My Trade Box`;
     $("#listingDetailCardImage").src = item.image_url;
     $("#listingDetailCardImage").alt = cardName;
     $("#listingDetailCardImage").dataset.cardLabel = cardName;
@@ -84,7 +84,7 @@
       whatsapp.hidden = false;
       whatsapp.href = whatsappHref(
         phone,
-        `Olá! Vi seu anúncio "${item.title || cardName}" no ManaPonte.`,
+        `Olá! Vi seu anúncio "${item.title || cardName}" no My Trade Box.`,
       );
     }
 

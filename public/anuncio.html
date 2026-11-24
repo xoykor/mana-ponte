@@ -8,22 +8,44 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Detalhes de um anúncio no ManaPonte.">
-    <title>Anúncio — ManaPonte</title>
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#008b8b" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#082426" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="Detalhes de um anúncio no My Trade Box.">
+    <title>Anúncio — My Trade Box</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="auth.css">
   </head>
   <body>
-    <header class="nav">
-      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
-      <nav>
-        <a href="anuncios.html">Anúncios</a>
-        <a href="index.html#como">Como funciona</a>
-      </nav>
-      <div class="auth-actions">
-        <a class="secondary compact" href="anuncios.html">Voltar aos anúncios</a>
-      </div>
-    </header>
+    <div class="site-header">
+      <header class="nav">
+        <a class="brand" href="index.html" aria-label="My Trade Box — página inicial">
+          <img
+            class="brand-badge"
+            src="assets/favicon.svg"
+            alt=""
+            width="40"
+            height="40"
+            aria-hidden="true"
+          >
+          <img
+            class="brand-wordmark"
+            src="assets/logo-horizontal.svg"
+            alt="My Trade Box"
+            width="178"
+            height="25"
+          >
+        </a>
+        <nav aria-label="Principal">
+          <a href="anuncios.html">Anúncios</a>
+          <a href="index.html#como">Como funciona</a>
+        </nav>
+        <div class="auth-actions">
+          <a class="secondary compact" href="anuncios.html">Voltar aos anúncios</a>
+        </div>
+      </header>
+    </div>
 
     <main class="standalone-page">
       <section class="section listing-detail">
@@ -76,11 +98,21 @@
       </section>
     </main>
 
-    <footer>
-      <strong>ManaPonte</strong>
-      <span>Negociação direta entre jogadores</span>
-      <span>Dados e imagens oficiais: Scryfall</span>
-    </footer>
+    <div class="site-footer">
+      <footer>
+        <div class="footer-brand">
+          <img
+            src="assets/logo-horizontal.svg"
+            alt="My Trade Box"
+            width="160"
+            height="22"
+            loading="lazy"
+          >
+          <span>Negociação direta entre jogadores</span>
+        </div>
+        <span>Dados e imagens oficiais: Scryfall</span>
+      </footer>
+    </div>
 
     <script src="config.js"></script>
     <script src="page-common.js"></script>

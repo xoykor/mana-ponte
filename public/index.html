@@ -1,5 +1,5 @@
 <!--
-  HOME DO MANAPONTE
+  HOME DO MY TRADE BOX
 
   O HTML define a estrutura visível.
   A lógica principal fica em app.js.
@@ -10,11 +10,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#008b8b" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#082426" media="(prefers-color-scheme: dark)">
     <meta
       name="description"
-      content="Encontre jogadores de Magic perto de você para comprar, vender e trocar cartas."
+      content="My Trade Box — encontre jogadores de Magic perto de você para comprar, vender e trocar cartas diretamente na comunidade."
     >
-    <title>ManaPonte — Magic mais perto</title>
+    <title>My Trade Box — Sua caixa comunitária de trocas de Magic</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 
     <!-- Os estilos ficam em arquivos separados para facilitar a manutenção. -->
     <link rel="stylesheet" href="styles.css">
@@ -23,99 +27,141 @@
 
   <body>
     <!-- Navegação principal e ações relacionadas à conta. -->
-    <header class="nav">
-      <a class="brand" href="index.html">Mana<span>Ponte</span></a>
+    <div class="site-header">
+      <header class="nav">
+        <a class="brand" href="index.html" aria-label="My Trade Box — página inicial">
+          <img
+            class="brand-badge"
+            src="assets/favicon.svg"
+            alt=""
+            width="40"
+            height="40"
+            aria-hidden="true"
+          >
+          <img
+            class="brand-wordmark"
+            src="assets/logo-horizontal.svg"
+            alt="My Trade Box"
+            width="178"
+            height="25"
+          >
+        </a>
 
-      <nav>
-        <a href="anuncios.html">Anúncios</a>
-        <a href="#como">Como funciona</a>
-      </nav>
+        <nav aria-label="Principal">
+          <a href="anuncios.html">Anúncios</a>
+          <a href="#como">Como funciona</a>
+        </nav>
 
-      <div class="auth-actions">
-        <span id="userBadge" class="user-badge" hidden></span>
-        <button class="secondary compact" id="authButton">Entrar</button>
-        <button class="secondary compact" id="accountButton" hidden>Minha conta</button>
-        <button class="secondary compact" id="logoutButton" hidden>Sair</button>
-        <button class="button compact" id="openModal">Anunciar carta</button>
-      </div>
-    </header>
+        <div class="auth-actions">
+          <span id="userBadge" class="user-badge" hidden></span>
+          <button class="secondary compact" id="authButton">Entrar</button>
+          <button class="secondary compact" id="accountButton" hidden>Minha conta</button>
+          <button class="secondary compact" id="logoutButton" hidden>Sair</button>
+          <button class="button compact" id="openModal">Anunciar carta</button>
+        </div>
+      </header>
+    </div>
 
     <main>
       <!-- Hero e busca pública de ofertas. -->
-      <section class="hero">
-        <div>
-          <p class="eyebrow">A comunidade é o melhor marketplace</p>
-          <h1>A carta que falta pode estar <em>na mesa ao lado.</em></h1>
-          <p class="lead">
-            Descubra quem tem o que você procura, filtre por região e combine
-            a troca diretamente com outro jogador.
-          </p>
-        </div>
+      <div class="hero-stage">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">A comunidade é o melhor marketplace</p>
+            <h1>A carta que falta pode estar <em>na caixa ao lado.</em></h1>
+            <p class="lead">
+              Descubra quem tem o que você procura, filtre por região e combine
+              a compra ou troca diretamente com outro jogador.
+            </p>
 
-        <form id="searchForm" class="search">
-          <label>
-            <span>Qual carta?</span>
-            <input
-              id="search"
-              data-card-autocomplete
-              list="homeCardSuggestions"
-              placeholder="Ex.: Sol Ring"
-              autocomplete="off"
-            >
-            <datalist id="homeCardSuggestions"></datalist>
-          </label>
+            <div class="hero-brand-showcase" aria-hidden="true">
+              <img
+                class="hero-logo-stacked"
+                src="assets/logo.svg"
+                alt=""
+                width="132"
+                height="165"
+              >
+              <img
+                class="hero-mascot"
+                src="assets/mascot.svg"
+                alt=""
+                width="310"
+                height="174"
+              >
+            </div>
+          </div>
 
-          <label>
-            <span>Coleção</span>
-            <select id="set">
-              <option value="">Todas</option>
-            </select>
-          </label>
+          <form id="searchForm" class="search">
+            <div class="search-head">
+              <span class="search-tag">Busca rápida</span>
+              <strong>Abra a caixa da sua região</strong>
+            </div>
 
-          <label>
-            <span>Cidade</span>
-            <input
-              id="city"
-              placeholder="Ex.: Natal"
-              autocomplete="address-level2"
-            >
-          </label>
+            <label>
+              <span>Qual carta?</span>
+              <input
+                id="search"
+                data-card-autocomplete
+                list="homeCardSuggestions"
+                placeholder="Ex.: Sol Ring"
+                autocomplete="off"
+              >
+              <datalist id="homeCardSuggestions"></datalist>
+            </label>
 
-          <label>
-            <span>UF</span>
-            <select id="state" data-brazil-states>
-              <option value="">Brasil</option>
-            </select>
-          </label>
+            <label>
+              <span>Coleção</span>
+              <select id="set">
+                <option value="">Todas</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Idioma da impressão</span>
-            <select id="language">
-              <option value="">Todos os idiomas</option>
-              <option value="pt">Português</option>
-              <option value="en">Inglês</option>
-              <option value="es">Espanhol</option>
-              <option value="fr">Francês</option>
-              <option value="de">Alemão</option>
-              <option value="it">Italiano</option>
-              <option value="ja">Japonês</option>
-              <option value="ko">Coreano</option>
-              <option value="ru">Russo</option>
-              <option value="zhs">Chinês simplificado</option>
-              <option value="zht">Chinês tradicional</option>
-              <option value="he">Hebraico</option>
-              <option value="la">Latim</option>
-              <option value="grc">Grego antigo</option>
-              <option value="ar">Árabe</option>
-              <option value="sa">Sânscrito</option>
-              <option value="ph">Phyrexiano</option>
-              <option value="qya">Quenya</option>
-            </select>
-          </label>
+            <label>
+              <span>Cidade</span>
+              <input
+                id="city"
+                placeholder="Ex.: Natal"
+                autocomplete="address-level2"
+              >
+            </label>
 
-          <button class="button">Encontrar</button>
-        </form>
-      </section>
+            <label>
+              <span>UF</span>
+              <select id="state" data-brazil-states>
+                <option value="">Brasil</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Idioma da impressão</span>
+              <select id="language">
+                <option value="">Todos os idiomas</option>
+                <option value="pt">Português</option>
+                <option value="en">Inglês</option>
+                <option value="es">Espanhol</option>
+                <option value="fr">Francês</option>
+                <option value="de">Alemão</option>
+                <option value="it">Italiano</option>
+                <option value="ja">Japonês</option>
+                <option value="ko">Coreano</option>
+                <option value="ru">Russo</option>
+                <option value="zhs">Chinês simplificado</option>
+                <option value="zht">Chinês tradicional</option>
+                <option value="he">Hebraico</option>
+                <option value="la">Latim</option>
+                <option value="grc">Grego antigo</option>
+                <option value="ar">Árabe</option>
+                <option value="sa">Sânscrito</option>
+                <option value="ph">Phyrexiano</option>
+                <option value="qya">Quenya</option>
+              </select>
+            </label>
+
+            <button class="button">Encontrar cartas</button>
+          </form>
+        </section>
+      </div>
 
       <!-- Vitrine com os anúncios encontrados. -->
       <section id="ofertas" class="section">
@@ -160,34 +206,57 @@
 
       <!-- Explicação curta do fluxo para visitantes novos. -->
       <section id="como" class="section how">
-        <p class="eyebrow">Simples e direto</p>
-        <h2>Da busca ao shuffle em três passos</h2>
+        <div class="how-header">
+          <div>
+            <p class="eyebrow">Simples e direto</p>
+            <h2>Da caixa ao shuffle em três passos</h2>
+          </div>
+          <img
+            class="how-mascot"
+            src="assets/mascot.svg"
+            alt=""
+            width="168"
+            height="95"
+            loading="lazy"
+            aria-hidden="true"
+          >
+        </div>
 
         <div class="steps">
           <article>
             <b>01</b>
             <h3>Cadastre</h3>
-            <p>Escolha a impressão exata no catálogo Scryfall.</p>
+            <p>Escolha a impressão exata no catálogo Scryfall e monte sua caixa.</p>
           </article>
           <article>
             <b>02</b>
             <h3>Filtre</h3>
-            <p>Encontre cartas, modalidades e jogadores por região.</p>
+            <p>Encontre cartas, modalidades e jogadores perto da sua região.</p>
           </article>
           <article>
             <b>03</b>
             <h3>Combine</h3>
-            <p>Converse diretamente e negocie com segurança.</p>
+            <p>Converse diretamente e feche sua compra ou troca sem intermediários.</p>
           </article>
         </div>
       </section>
     </main>
 
-    <footer>
-      <strong>ManaPonte</strong>
-      <span>Protótipo comunitário de Magic: The Gathering</span>
-      <span>Dados e imagens: Scryfall</span>
-    </footer>
+    <div class="site-footer">
+      <footer>
+        <div class="footer-brand">
+          <img
+            src="assets/logo-horizontal.svg"
+            alt="My Trade Box"
+            width="160"
+            height="22"
+            loading="lazy"
+          >
+          <span>Vitrine comunitária de compra, venda e troca de Magic: The Gathering</span>
+        </div>
+        <span>Dados e imagens: Scryfall</span>
+      </footer>
+    </div>
 
     <!--
       Modal de criação de oferta.

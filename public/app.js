@@ -206,8 +206,23 @@ function renderListings(listings, pagination = {}) {
   }
 
   if (!entries.length) {
-    $("#listings").innerHTML =
-      "<p>Nenhuma oferta com esses filtros. Tente ampliar a região.</p>";
+    $("#listings").innerHTML = `
+      <div class="empty-box empty-state">
+        <img
+          class="empty-mascot"
+          src="assets/mascot.svg"
+          alt=""
+          width="140"
+          height="79"
+          loading="lazy"
+          aria-hidden="true"
+        >
+        <div>
+          <strong>Nenhuma carta encontrada nesta caixa</strong>
+          <p>Nenhuma oferta com esses filtros. Tente ampliar a busca ou a região.</p>
+        </div>
+      </div>
+    `;
     return;
   }
 

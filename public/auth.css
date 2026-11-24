@@ -1,10 +1,10 @@
 /*
- * ESTILOS DE AUTENTICAÇÃO E ÁREA DA CONTA
+ * ESTILOS DE AUTENTICAÇÃO E ÁREA DA CONTA — MY TRADE BOX
  *
  * Complementa styles.css para login, cadastro e telas autenticadas.
  */
 
-/* Controles de sessão no cabeçalho. */
+/* Controles de sessão no cabeçalho e ações secundárias. */
 .auth-actions {
   display: flex;
   align-items: center;
@@ -12,20 +12,55 @@
 }
 
 .secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 10px 14px;
-  background: transparent;
-  border: 1px solid var(--line);
+  background: var(--panel);
+  border: 1.5px solid var(--control-border);
   border-radius: 12px;
   color: var(--ink);
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.secondary:hover {
+  background: var(--panel-subtle);
+  border-color: var(--green);
+}
+
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Na barra Teal do topo, os botões secundários usam contraste branco translúcido. */
+.site-header .secondary {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.62);
+  color: #ffffff;
+}
+
+.site-header .secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: #ffffff;
+}
+
+.site-header .secondary:focus-visible {
+  outline-color: #ffe2bf;
 }
 
 .user-badge {
-  max-width: 150px;
+  max-width: 160px;
   overflow: hidden;
-  color: var(--green);
+  padding: 5px 10px;
+  background: rgba(8, 38, 40, 0.28);
+  border: 1px solid rgba(255, 226, 191, 0.45);
+  border-radius: 999px;
+  color: #ffe5c4;
+  font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -57,15 +92,15 @@
 .auth-warning {
   margin-top: 18px;
   padding: 16px;
-  background: #211c12;
-  border: 1px solid #66552f;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-border);
   border-radius: 14px;
-  color: #f4d58e;
+  color: var(--notice-ink);
 }
 
 .auth-warning p {
   margin-bottom: 0;
-  color: #d1c3a4;
+  color: var(--notice-muted);
 }
 
 .auth-panel small {
@@ -129,14 +164,15 @@ dialog.wide-dialog {
 .account-section {
   display: grid;
   gap: 12px;
-  padding: 16px;
-  background: #0f1512;
+  padding: 18px;
+  background: var(--panel-subtle);
   border: 1px solid var(--line);
   border-radius: 16px;
 }
 
 .account-section h3 {
   margin: 0;
+  font-family: var(--font-display);
 }
 
 .account-section-head {
@@ -156,9 +192,10 @@ dialog.wide-dialog {
   grid-template-columns: 58px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 10px;
+  padding: 11px;
   background: var(--panel);
   border: 1px solid var(--line);
+  border-left: 4px solid var(--brand-kraft-soft);
   border-radius: 12px;
 }
 
@@ -166,13 +203,17 @@ dialog.wide-dialog {
   width: 58px;
   height: 80px;
   object-fit: cover;
-  background: #202923;
+  background: var(--thumb-bg);
   border-radius: 7px;
 }
 
 .account-item h4,
 .account-item p {
   margin: 0;
+}
+
+.account-item h4 {
+  font-family: var(--font-display);
 }
 
 .account-item .meta {
@@ -191,7 +232,7 @@ dialog.wide-dialog {
 
 .account-item-button:hover,
 .account-item-button:focus-visible {
-  background: #18231d;
+  background: var(--badge-bg);
   border-color: var(--green);
   outline: none;
 }
@@ -215,8 +256,12 @@ dialog.wide-dialog {
 }
 
 .danger {
-  border-color: #744;
-  color: #f2aaaa;
+  border-color: var(--danger-border);
+  color: var(--danger-ink);
+}
+
+.danger:hover {
+  border-color: var(--danger-ink);
 }
 
 .empty-state {
