@@ -124,6 +124,31 @@
     return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
   }
 
+  const FINISH_LABELS = {
+    normal: "Normal",
+    foil: "Foil / Holo",
+    reverse_holo: "Reverse Holo",
+    pokeball_foil: "Poké Ball Foil",
+    masterball_foil: "Master Ball Foil",
+    etched: "Etched Foil",
+  };
+
+  function gameShort(game) {
+    return String(game || "mtg").toLowerCase() === "pokemon"
+      ? "Pokémon"
+      : "Magic";
+  }
+
+  function finishLabel(finish) {
+    const key = String(finish || "normal").toLowerCase();
+    return FINISH_LABELS[key] || "";
+  }
+
+  function cardImageUrl(url) {
+    const clean = String(url || "").trim();
+    return clean || "assets/card-placeholder.svg";
+  }
+
   global.ManaPontePage = {
     API_BASE,
     STATIC_MODE,
@@ -134,5 +159,8 @@
     formatPhone,
     phoneHref,
     whatsappHref,
+    gameShort,
+    finishLabel,
+    cardImageUrl,
   };
 }(window));

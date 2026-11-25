@@ -1,0 +1,12 @@
+<svg width="250" height="350" viewBox="0 0 250 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="250" height="350" rx="16" fill="#0B3B3E"/>
+  <rect x="10" y="10" width="230" height="330" rx="11" stroke="#D5A97C" stroke-width="3" stroke-dasharray="8 6"/>
+  <circle cx="125" cy="152" r="46" fill="#008B8B" stroke="#E29D57" stroke-width="3"/>
+  <rect x="97" y="132" width="56" height="40" rx="6" fill="#D5A97C" stroke="#141414" stroke-width="3"/>
+  <path d="M97 144H153" stroke="#141414" stroke-width="3"/>
+  <circle cx="116" cy="155" r="3" fill="#141414"/>
+  <circle cx="134" cy="155" r="3" fill="#141414"/>
+  <path d="M115 164C120 169 130 169 135 164" stroke="#590F0F" stroke-width="3" stroke-linecap="round"/>
+  <text x="125" y="232" text-anchor="middle" fill="#ECF6F6" font-family="system-ui, sans-serif" font-size="14" font-weight="700">Imagem indisponível</text>
+  <text x="125" y="252" text-anchor="middle" fill="#9BBABC" font-family="system-ui, sans-serif" font-size="11">My Trade Box</text>
+</svg>

@@ -1,6 +1,6 @@
 /*
- * SELETOR DE CARTAS
- * =================
+ * SELETOR DE CARTAS (MAGIC & POKÉMON)
+ * ===================================
  *
  * Pesquisa cartas, mostra resultados e guarda qual impressão foi escolhida.
  * O estado fica dentro de create(), então várias instâncias podem coexistir.
@@ -10,19 +10,26 @@
  * Componente de busca e seleção de uma impressão de carta.
  *
  * O componente não conhece o restante do formulário. Ele apenas recebe um
- * elemento raiz e devolve pequenas funções para limpar, focar e ler a carta
- * selecionada. Essa separação deixa o código reutilizável e mais fácil de
- * testar mentalmente.
+ * elemento raiz e devolve pequenas funções para limpar, focar, trocar o jogo
+ * ativo e ler a carta selecionada.
  */
 (function (global) {
   "use strict";
 
-  /**
-   * Escapa valores que serão inseridos em HTML.
-   *
-   * O nome da carta e outros metadados vêm do catálogo; nunca devemos assumir
-   * que esses textos são seguros para serem colocados em uma template string.
-   */
+  const POKEMON_LANGUAGES = new Set([
+    "",
+    "pt",
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "ja",
+    "ko",
+    "zhs",
+    "zht",
+  ]);
+
   const esc = value => String(value ?? "").replace(/[&<>"']/g, character => ({
     "&": "&amp;",
     "<": "&lt;",
@@ -31,13 +38,6 @@
     "'": "&#039;",
   }[character]));
 
-
-  /**
-   * Inicializa um seletor dentro de ``options.root``.
-   *
-   * ``options.staticCards`` é usado pelo GitHub Pages. Quando ele é nulo, as
-   * buscas vão para a rota indicada em ``options.source``.
-   */
   /* Cria uma instância independente do seletor. */
   function create(options) {
     const root = options.root;
@@ -52,11 +52,12 @@
     const hint = root.querySelector("[data-card-hint]");
     const language = root.querySelector("[data-card-language]");
 
-    // O endpoint normal é o backend local, mas pode ser substituído por uma
-    // rota diferente em uma página incorporada.
     const source = options.source || "/api/cards";
 
     // Estado privado desta instância do componente.
+    let currentGame = String(options.game || root.dataset.game || "mtg")
+      .trim()
+      .toLowerCase();
     let staticCards = Array.isArray(options.staticCards)
       ? options.staticCards
       : null;
@@ -68,10 +69,30 @@
     let nextPage = 1;
     let hasMore = false;
 
+    /* Sincroniza opções de idioma e placeholder conforme o TCG ativo. */
+    function syncLanguageOptionsForGame() {
+      if (search) {
+        search.placeholder = currentGame === "pokemon"
+          ? "Ex.: Pikachu, Charizard ex…"
+          : "Ex.: Sol Ring, Rhystic Study…";
+      }
 
-    /**
-     * Cancela buscas pendentes e invalida respostas que já estejam a caminho.
-     */
+      if (!language) {
+        return;
+      }
+
+      const isPokemon = currentGame === "pokemon";
+      [...language.options].forEach(option => {
+        const supported = !isPokemon || POKEMON_LANGUAGES.has(option.value);
+        option.hidden = !supported;
+        option.disabled = !supported;
+      });
+
+      if (isPokemon && !POKEMON_LANGUAGES.has(language.value)) {
+        language.value = "";
+      }
+    }
+
     /* Cancela/ignora pesquisa antiga quando o texto muda. */
     function invalidatePendingRequest() {
       clearTimeout(timer);
@@ -85,19 +106,11 @@
       requestId += 1;
     }
 
-
-    /**
-     * Nome visível da impressão; prioriza a tradução quando disponível.
-     */
     /* Escolhe o melhor nome para mostrar. */
     function displayName(card) {
       return card?.printed_name || card?.printedName || card?.name || "Carta";
     }
 
-
-    /**
-     * Produz a identificação curta exibida para uma impressão.
-     */
     /* Monta o texto completo de uma opção. */
     function label(card) {
       const set = String(card.set_code || card.setCode || "").toUpperCase();
@@ -109,10 +122,6 @@
       );
     }
 
-
-    /**
-     * Encaminha a ampliação para o componente global compartilhado pelo site.
-     */
     /* Abre a imagem ampliada quando disponível. */
     function showZoom(card) {
       const image = card?.image_url || card?.imageUrl || "";
@@ -123,9 +132,6 @@
       global.ManaPonteCardPreview?.open(image, label(card));
     }
 
-    /**
-     * Atualiza a área que mostra a carta escolhida e o input escondido.
-     */
     /* Atualiza a interface após selecionar uma carta. */
     function renderSelected() {
       if (!selectedCard) {
@@ -149,13 +155,8 @@
       selectedView.querySelector("[data-card-clear]").onclick = clear;
     }
 
-
-    /**
-     * Desenha resultados novos ou acrescenta uma página à lista existente.
-     */
     /* Desenha os resultados da pesquisa. */
     function renderResults(cards, message, append = false) {
-      // Quando ``append`` é verdadeiro, preservamos os resultados anteriores.
       resultCards = append ? resultCards.concat(cards) : cards;
 
       if (!resultCards.length) {
@@ -167,12 +168,14 @@
 
       results.innerHTML = resultCards.map((card, index) => {
         const image = card.image_url || card.imageUrl || "";
+        const thumbSrc = image || "assets/card-placeholder.svg";
         const set = String(card.set_code || card.setCode || "").toUpperCase();
+        const setName = card.set_name ? ` (${esc(card.set_name)})` : "";
         const number = card.collector_number
           ? ` · #${esc(card.collector_number)}`
           : "";
         const cardLanguage = card.language || card.lang;
-        const language = cardLanguage
+        const langText = cardLanguage
           ? ` · ${esc(String(cardLanguage).toUpperCase())}`
           : "";
 
@@ -182,13 +185,16 @@
               type="button"
               class="card-picker-zoom"
               data-card-zoom="${index}"
-              aria-label="Ampliar ${esc(card.name)}"
+              aria-label="Ampliar ${esc(displayName(card))}"
               ${image ? "" : "disabled"}
             >
               <span class="card-picker-thumb">
-                ${image
-                  ? `<img src="${esc(image)}" alt="" loading="lazy" data-card-image data-card-label="${esc(label(card))}">`
-                  : ""}
+                <img
+                  src="${esc(thumbSrc)}"
+                  alt=""
+                  loading="lazy"
+                  ${image ? `data-card-image data-card-label="${esc(label(card))}"` : ""}
+                >
               </span>
             </button>
             <button
@@ -199,14 +205,13 @@
             >
               <span>
                 <strong>${esc(displayName(card))}</strong>
-                <small>${esc(set)}${number}${language}</small>
+                <small>${esc(set)}${setName}${number}${langText}</small>
               </span>
             </button>
           </div>
         `;
       }).join("");
 
-      // A imagem amplia; o restante da linha seleciona a impressão.
       results.querySelectorAll("[data-card-zoom]").forEach(button => {
         button.onclick = () => {
           showZoom(resultCards[Number(button.dataset.cardZoom)]);
@@ -219,8 +224,6 @@
         };
       });
 
-      // O botão de paginação fica depois dos resultados, mas dentro da mesma
-      // área rolável, para que o usuário possa pedir mais impressões.
       if (hasMore) {
         const more = document.createElement("button");
         more.type = "button";
@@ -232,14 +235,15 @@
       }
     }
 
-
-    /**
-     * Marca uma carta como escolhida e limpa a lista de resultados.
-     */
     /* Marca uma impressão como escolhida. */
     function select(card) {
       invalidatePendingRequest();
       selectedCard = card || null;
+
+      if (selectedCard?.game) {
+        currentGame = String(selectedCard.game).toLowerCase();
+        syncLanguageOptionsForGame();
+      }
 
       const selectedLanguage = String(
         selectedCard?.language || selectedCard?.lang || ""
@@ -247,7 +251,9 @@
       if (
         language &&
         selectedLanguage &&
-        [...language.options].some(option => option.value === selectedLanguage)
+        [...language.options].some(
+          option => option.value === selectedLanguage && !option.disabled
+        )
       ) {
         language.value = selectedLanguage;
       }
@@ -265,17 +271,11 @@
           : "Digite pelo menos 2 caracteres para buscar no catálogo.";
       }
 
-      // O formulário principal pode reagir sem conhecer a implementação
-      // interna do componente.
       root.dispatchEvent(
         new CustomEvent("cardselected", { detail: selectedCard })
       );
     }
 
-
-    /**
-     * Remove a seleção atual e devolve o campo ao estado inicial.
-     */
     /* Limpa seleção e estado visual. */
     function clear() {
       invalidatePendingRequest();
@@ -296,10 +296,33 @@
       );
     }
 
+    /* Altera o jogo ativo (mtg ou pokemon) e limpa seleção incompatível. */
+    function setGame(nextGame) {
+      const normalized = String(nextGame || "mtg").trim().toLowerCase();
+      if (normalized === currentGame) {
+        syncLanguageOptionsForGame();
+        return;
+      }
 
-    /**
-     * Filtra os cards que já estão na memória em modo estático.
-     */
+      currentGame = normalized;
+      syncLanguageOptionsForGame();
+
+      if (selectedCard && String(selectedCard.game || "mtg").toLowerCase() !== currentGame) {
+        clear();
+        return;
+      }
+
+      invalidatePendingRequest();
+      resultCards = [];
+      nextPage = 1;
+      hasMore = false;
+      renderResults([], "");
+
+      if (search.value.trim().length >= 2) {
+        searchCards();
+      }
+    }
+
     /* Pesquisa cartas em memória no modo estático. */
     function staticSearch(query) {
       const normalized = query.toLocaleLowerCase();
@@ -307,6 +330,7 @@
 
       return staticCards
         .filter(card =>
+          (!currentGame || String(card.game || "mtg").toLowerCase() === currentGame) &&
           (!requestedLanguage ||
             String(card.language || card.lang || "").toLowerCase() === requestedLanguage) &&
           `${card.name} ${card.printed_name || card.printedName || ""} ${card.set_code} ${card.collector_number}`
@@ -316,15 +340,10 @@
         .slice(0, 20);
     }
 
-
-    /**
-     * Busca uma página no catálogo remoto ou no catálogo estático.
-     */
     /* Pesquisa cartas na API ou localmente. */
     async function searchCards({ page = 1, append = false } = {}) {
       const query = search.value.trim();
 
-      // Evitamos chamadas muito amplas para entradas vazias ou pouco úteis.
       if (query.length < 2) {
         invalidatePendingRequest();
         resultCards = [];
@@ -347,8 +366,6 @@
         return;
       }
 
-      // Uma nova busca invalida a requisição anterior para evitar que uma
-      // resposta lenta sobrescreva resultados mais recentes.
       if (controller) {
         controller.abort();
         controller = null;
@@ -370,6 +387,9 @@
       try {
         const url = new URL(source, global.location.href);
         url.searchParams.set("q", query);
+        if (currentGame) {
+          url.searchParams.set("game", currentGame);
+        }
         if (language?.value) {
           url.searchParams.set("lang", language.value);
         }
@@ -386,7 +406,6 @@
 
         const payload = await response.json();
 
-        // Uma busca nova pode ter terminado enquanto esta resposta chegava.
         if (currentRequest !== requestId) {
           return;
         }
@@ -410,7 +429,6 @@
           append
         );
       } catch (error) {
-        // AbortError é esperado quando o visitante digita outra busca.
         if (error.name === "AbortError") {
           return;
         }
@@ -434,14 +452,10 @@
       }
     }
 
-
-    // O pequeno atraso evita uma requisição a cada tecla digitada.
     search.addEventListener("input", () => {
       clearTimeout(timer);
       timer = null;
 
-      // Editar o texto de uma carta selecionada invalida imediatamente o
-      // vínculo antigo, antes mesmo de a nova busca terminar.
       if (selectedCard) {
         selectedCard = null;
         renderSelected();
@@ -461,7 +475,6 @@
       }, 220);
     });
 
-    // Trocar o idioma invalida uma impressão já escolhida e refaz a busca.
     language?.addEventListener("change", () => {
       const previous = selectedCard;
       if (previous) {
@@ -484,8 +497,6 @@
       }
     });
 
-
-    // Escape limpa a seleção sem precisar clicar em outro controle.
     search.addEventListener("keydown", event => {
       if (event.key === "Escape") {
         clear();
@@ -493,11 +504,14 @@
       }
     });
 
-    // A página principal usa esta API mínima para controlar o componente.
+    syncLanguageOptionsForGame();
+
     return {
       clear,
       focus: () => search.focus(),
+      getGame: () => currentGame,
       getSelectedCard: () => selectedCard,
+      setGame,
       setStaticCards: cards => {
         invalidatePendingRequest();
         staticCards = Array.isArray(cards) ? cards : null;
@@ -507,7 +521,5 @@
     };
   }
 
-
-  // Expõe somente o construtor do componente no objeto global da página.
   global.ManaBridgeCardPicker = { create };
 }(window));

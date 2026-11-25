@@ -194,6 +194,10 @@
   display: none !important;
 }
 
+search {
+  display: block;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -587,10 +591,18 @@ textarea:user-invalid {
 
 .section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 26px;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
 }
 
 .chips {
@@ -738,6 +750,13 @@ textarea:user-invalid {
   font-weight: 800;
 }
 
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .badge {
   display: inline-block;
   padding: 3px 9px;
@@ -749,6 +768,18 @@ textarea:user-invalid {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.game-badge.game-pokemon {
+  background: var(--notice-bg);
+  border-color: var(--notice-border);
+  color: var(--notice-ink);
+}
+
+.game-badge.game-mtg {
+  background: var(--panel-subtle);
+  border-color: var(--control-border);
+  color: var(--ink);
 }
 
 .status {
@@ -932,6 +963,61 @@ dialog form {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.game-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.game-fieldset legend {
+  padding: 0;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.game-radio-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.game-radio {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  background: var(--panel-subtle);
+  border: 1.5px solid var(--control-border);
+  border-radius: 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.game-radio input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.game-radio:has(input:checked) {
+  background: var(--badge-bg);
+  border-color: var(--button-bg);
+  color: var(--badge-ink);
 }
 
 .notice {

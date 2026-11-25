@@ -1,158 +1,21 @@
 /*
- * CATÁLOGO DE CARTAS
- * ==================
+ * CATÁLOGO DE CARTAS (MULTI-TCG: MAGIC & POKÉMON)
+ * ===============================================
  *
  * Estratégia:
  *   1. procurar primeiro no D1;
- *   2. se houver poucos resultados, consultar o Scryfall;
+ *   2. se houver poucos resultados, consultar Scryfall (Magic) e/ou TCGdex (Pokémon);
  *   3. salvar somente metadados e URL externa da imagem;
  *   4. reler a página final do D1.
  *
- * O ManaPonte NÃO armazena bytes de imagens.
+ * O projeto NÃO armazena bytes de imagens.
  */
 
-import { json, positiveInt } from "./lib.js";
+import { GAMES, badRequest, json, positiveInt } from "./lib.js";
+import { fetchScryfallCards } from "./providers/mtg-scryfall.js";
+import { fetchPokemonCards } from "./providers/pokemon-tcgdex.js";
 
-const MAX_REMOTE_CARDS = 100;
 const UPSERT_BATCH_SIZE = 50;
-
-/*
- * Algumas cartas do Scryfall possuem image_uris diretamente.
- * Cartas de múltiplas faces podem guardar a imagem dentro de card_faces.
- */
-function readNormalImageUrl(card) {
-  if (card.image_uris && card.image_uris.normal) {
-    return card.image_uris.normal;
-  }
-
-  if (Array.isArray(card.card_faces)) {
-    const faceWithImage = card.card_faces.find(
-      face => face.image_uris && face.image_uris.normal
-    );
-
-    if (faceWithImage) {
-      return faceWithImage.image_uris.normal;
-    }
-  }
-
-  return null;
-}
-
-/*
- * Converte o formato grande do Scryfall no formato pequeno que nosso banco usa.
- */
-function mapScryfallCard(card) {
-  return {
-    scryfall_id: card.id,
-    oracle_id: card.oracle_id || null,
-    name: card.name,
-    printed_name: card.printed_name || null,
-    set_code: card.set,
-    set_name: card.set_name,
-    collector_number: card.collector_number,
-    language: card.lang || "en",
-    rarity: card.rarity || "common",
-    image_url: readNormalImageUrl(card)
-  };
-}
-
-/*
- * Monta a expressão de busca aceita pela API do Scryfall.
- */
-function buildScryfallQuery(search, setCode, language) {
-  const cleanSearch = search
-    .replace(/["\\]/g, " ")
-    .trim();
-
-  if (cleanSearch.length < 3) {
-    return null;
-  }
-
-  const terms = [
-    'name:"' + cleanSearch + '"',
-    "unique:prints"
-  ];
-
-  if (setCode) {
-    const safeSetCode = setCode.replace(/[^a-z0-9]/gi, "");
-    terms.push("set:" + safeSetCode);
-  }
-
-  if (language) {
-    const safeLanguage = language.replace(/[^a-z]/gi, "");
-    terms.push("lang:" + safeLanguage);
-  }
-
-  return terms.join(" ");
-}
-
-/*
- * Consulta o Scryfall e percorre páginas até chegar ao nosso teto.
- */
-async function fetchScryfall(search, setCode, language) {
-  const query = buildScryfallQuery(
-    search,
-    setCode,
-    language
-  );
-
-  if (!query) {
-    return [];
-  }
-
-  const firstUrl = new URL(
-    "https://api.scryfall.com/cards/search"
-  );
-
-  firstUrl.searchParams.set("q", query);
-  firstUrl.searchParams.set("include_extras", "false");
-  firstUrl.searchParams.set("include_multilingual", "true");
-
-  const cards = [];
-  let nextUrl = firstUrl;
-
-  while (nextUrl && cards.length < MAX_REMOTE_CARDS) {
-    const response = await fetch(nextUrl, {
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": "ManaPonte/1.0 (Cloudflare Worker)"
-      }
-    });
-
-    // O Scryfall usa 404 para "nenhuma carta encontrada".
-    if (response.status === 404) {
-      break;
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        "Scryfall respondeu HTTP " + response.status
-      );
-    }
-
-    const payload = await response.json();
-
-    for (const card of payload.data || []) {
-      // O ManaPonte anuncia cartas físicas.
-      if (card.digital) {
-        continue;
-      }
-
-      cards.push(mapScryfallCard(card));
-
-      if (cards.length >= MAX_REMOTE_CARDS) {
-        break;
-      }
-    }
-
-    nextUrl =
-      payload.has_more && payload.next_page
-        ? new URL(payload.next_page)
-        : null;
-  }
-
-  return cards;
-}
 
 /*
  * Insere cartas novas e atualiza cartas que já existem.
@@ -163,10 +26,11 @@ async function upsertCards(env, cards) {
   const statements = cards.map(card => {
     return env.DB.prepare(
       "INSERT INTO cards(" +
-      "scryfall_id,oracle_id,name,printed_name,set_code,set_name," +
+      "game,scryfall_id,oracle_id,name,printed_name,set_code,set_name," +
       "collector_number,language,rarity,image_url,updated_at" +
-      ") VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) " +
+      ") VALUES(?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) " +
       "ON CONFLICT(scryfall_id) DO UPDATE SET " +
+      "game=excluded.game," +
       "oracle_id=excluded.oracle_id," +
       "name=excluded.name," +
       "printed_name=excluded.printed_name," +
@@ -178,6 +42,7 @@ async function upsertCards(env, cards) {
       "image_url=excluded.image_url," +
       "updated_at=CURRENT_TIMESTAMP"
     ).bind(
+      card.game || "mtg",
       card.scryfall_id,
       card.oracle_id,
       card.name,
@@ -220,17 +85,30 @@ function filtersFromUrl(url) {
   const clauses = [];
   const values = [];
 
+  const game = (url.searchParams.get("game") || "")
+    .trim()
+    .toLowerCase();
+
+  if (game && !GAMES.has(game)) {
+    throw new Error("Jogo inválido");
+  }
+
   const search = (url.searchParams.get("q") || "")
     .trim()
     .slice(0, 100);
 
   const setCode = (url.searchParams.get("set") || "")
     .trim()
-    .slice(0, 16);
+    .slice(0, 24);
 
   const language = (url.searchParams.get("lang") || "")
     .trim()
     .slice(0, 8);
+
+  if (game) {
+    clauses.push("game=?");
+    values.push(game);
+  }
 
   if (search) {
     clauses.push(
@@ -259,6 +137,7 @@ function filtersFromUrl(url) {
     : "";
 
   return {
+    game,
     search,
     setCode,
     language,
@@ -282,17 +161,70 @@ async function readCardsPage(env, filters, page, limit) {
 
   const result = await env.DB.prepare(
     "SELECT " +
-    "id,scryfall_id,oracle_id,name,printed_name,set_code,set_name," +
+    "id,game,scryfall_id,oracle_id,name,printed_name,set_code,set_name," +
     "collector_number,language,rarity,image_url " +
     "FROM cards" +
     filters.where + " " +
-    "ORDER BY name COLLATE NOCASE,set_code,collector_number " +
+    "ORDER BY (image_url IS NULL),name COLLATE NOCASE,set_code,collector_number " +
     "LIMIT ? OFFSET ?"
   )
     .bind(...filters.values, limit, offset)
     .all();
 
   return result.results || [];
+}
+
+async function enrichFromProviders(filters) {
+  const tasks = [];
+  const sources = [];
+
+  const wantMtg = !filters.game || filters.game === "mtg";
+  const wantPokemon = !filters.game || filters.game === "pokemon";
+
+  if (wantMtg && filters.search.length >= 3) {
+    tasks.push(
+      fetchScryfallCards(
+        filters.search,
+        filters.setCode,
+        filters.language
+      ).then(cards => ({ name: "scryfall", cards }))
+    );
+  }
+
+  if (wantPokemon && filters.search.length >= 2) {
+    tasks.push(
+      fetchPokemonCards(
+        filters.search,
+        filters.setCode,
+        filters.language
+      ).then(cards => ({ name: "tcgdex", cards }))
+    );
+  }
+
+  if (!tasks.length) {
+    return { cards: [], sources: [] };
+  }
+
+  const settled = await Promise.allSettled(tasks);
+  const collected = [];
+
+  for (const outcome of settled) {
+    if (outcome.status === "fulfilled") {
+      if (outcome.value.cards.length > 0) {
+        collected.push(...outcome.value.cards);
+        sources.push(outcome.value.name);
+      }
+    } else {
+      console.log(
+        "Remote catalog enrichment failed:",
+        outcome.reason && outcome.reason.message
+          ? outcome.reason.message
+          : outcome.reason
+      );
+    }
+  }
+
+  return { cards: collected, sources };
 }
 
 /*
@@ -316,35 +248,18 @@ export async function getCards(url, env) {
   let source = "local";
   let total = await countCards(env, filters);
 
-  const shouldTryScryfall =
-    filters.search.length >= 3 &&
+  const minQueryLength = filters.game === "pokemon" ? 2 : 2;
+  const shouldEnrich =
+    filters.search.length >= minQueryLength &&
     total < limit;
 
-  if (shouldTryScryfall) {
-    try {
-      const remoteCards = await fetchScryfall(
-        filters.search,
-        filters.setCode,
-        filters.language
-      );
+  if (shouldEnrich) {
+    const { cards: remoteCards, sources } = await enrichFromProviders(filters);
 
-      if (remoteCards.length > 0) {
-        await upsertCards(env, remoteCards);
-
-        source = "scryfall";
-
-        // O total pode ter mudado depois do upsert.
-        total = await countCards(env, filters);
-      }
-    } catch (error) {
-      /*
-       * O Scryfall é enriquecimento. Se estiver fora do ar, ainda devolvemos
-       * o que já existe no nosso D1.
-       */
-      console.log(
-        "Scryfall search failed:",
-        error && error.message ? error.message : error
-      );
+    if (remoteCards.length > 0) {
+      await upsertCards(env, remoteCards);
+      source = sources.join("+") || "remote";
+      total = await countCards(env, filters);
     }
   }
 
@@ -368,14 +283,32 @@ export async function getCards(url, env) {
  * GET /api/sets
  *
  * Só aparecem coleções que já possuem alguma impressão no D1.
+ * Aceita filtro opcional ?game=mtg|pokemon.
  */
-export async function getSets(env) {
-  const result = await env.DB.prepare(
-    "SELECT set_code,set_name,COUNT(*) AS card_count " +
+export async function getSets(url, env) {
+  const game = (url && url.searchParams
+    ? url.searchParams.get("game") || ""
+    : ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (game && !GAMES.has(game)) {
+    return badRequest("Jogo inválido");
+  }
+
+  const where = game ? "WHERE game=? " : "";
+  const statement = env.DB.prepare(
+    "SELECT game,set_code,set_name,COUNT(*) AS card_count " +
     "FROM cards " +
-    "GROUP BY set_code,set_name " +
+    where +
+    "GROUP BY game,set_code,set_name " +
     "ORDER BY set_name COLLATE NOCASE"
-  ).all();
+  );
+
+  const result = game
+    ? await statement.bind(game).all()
+    : await statement.all();
 
   return json({
     sets: result.results || []

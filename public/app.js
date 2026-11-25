@@ -62,6 +62,7 @@ const BRAZIL_STATES = [
 let cards = [];
 let catalogSets = [];
 let staticListings = [];
+let gameFilter = "";
 let mode = "";
 let currentUser = null;
 let csrfToken = null;
@@ -75,6 +76,34 @@ let listingsTotal = 0;
 let listingsLimit = LISTINGS_PAGE_SIZE;
 let listingsRequestId = 0;
 let listingsController = null;
+
+const FINISH_LABELS = {
+  normal: "Normal",
+  foil: "Foil / Holo",
+  reverse_holo: "Reverse Holo",
+  pokeball_foil: "Poké Ball Foil",
+  masterball_foil: "Master Ball Foil",
+  etched: "Etched Foil",
+};
+
+function gameShort(game) {
+  return String(game || "mtg").toLowerCase() === "pokemon"
+    ? "Pokémon"
+    : "Magic";
+}
+
+function finishText(finish) {
+  const key = String(finish || "normal").toLowerCase();
+  if (!key || key === "normal") {
+    return "";
+  }
+  return FINISH_LABELS[key] || "";
+}
+
+function cardImageUrl(url) {
+  const clean = String(url || "").trim();
+  return clean || "assets/card-placeholder.svg";
+}
 
 
 /**
@@ -245,25 +274,28 @@ function renderListings(listings, pagination = {}) {
       : "";
     const setCode = String(item.set_code ?? "").toUpperCase();
     const language = String(item.language || "en").toUpperCase();
+    const itemGame = String(item.game || "mtg").toLowerCase();
+    const extraFinish = finishText(item.finish);
+    const hasRealImage = Boolean(String(item.image_url || "").trim());
 
     return `
       <article class="listing">
         <img
           loading="lazy"
-          src="${esc(item.image_url)}"
+          src="${esc(cardImageUrl(item.image_url))}"
           alt="${esc(name)}"
-          data-card-image
-          data-card-label="${esc(name)}"
-          tabindex="0"
-          role="button"
+          ${hasRealImage ? `data-card-image data-card-label="${esc(name)}" tabindex="0" role="button"` : ""}
         >
         <div>
-          <span class="badge">${esc(item.mode)}</span>
+          <div class="badge-row">
+            <span class="badge game-badge game-${esc(itemGame)}">${esc(gameShort(itemGame))}</span>
+            <span class="badge">${esc(item.mode)}</span>
+          </div>
           <h3><a class="listing-title-link" href="anuncio.html?id=${encodeURIComponent(item.id)}">${esc(heading)}</a></h3>
           ${cardName}
           <div class="meta">
             ${esc(setCode)} ·
-            ${esc(item.condition)} ·
+            ${esc(item.condition)}${extraFinish ? ` · ${esc(extraFinish)}` : ""} ·
             ${esc(language)}
           </div>
           <div class="price">${money(item.price_cents)}</div>
@@ -287,6 +319,7 @@ function renderListings(listings, pagination = {}) {
 /* Lê os filtros escolhidos no formulário. */
 function filters() {
   return {
+    game: gameFilter || ($("#homeGame")?.value || ""),
     card: $("#search").value.trim(),
     set: $("#set").value,
     lang: $("#language").value,
@@ -340,6 +373,8 @@ async function loadListings({ page = 1 } = {}) {
       const all = [...savedListings(), ...staticListings];
       const normalizedCard = selected.card.toLocaleLowerCase();
       const filtered = all.filter(item =>
+        (!selected.game ||
+          String(item.game || "mtg").toLowerCase() === selected.game) &&
         (!selected.card ||
           String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
         (!selected.set || item.set_code === selected.set) &&
@@ -417,40 +452,65 @@ function populateBrazilStates() {
 }
 
 
-/**
- * Preenche o filtro de coleções e inicializa os seletores de cartas.
- */
-/* Carrega dados de demonstração no modo estático. */
-function populateCatalog() {
-  // A API fornece uma lista completa de sets. O fallback usa os cards já
-  // carregados para manter a demonstração funcionando com arquivos estáticos.
-  const sourceSets = catalogSets.length ? catalogSets : cards;
+/* Atualiza as opções de coleções conforme o jogo selecionado. */
+function refreshHomeSets() {
+  const select = $("#set");
+  if (!select) {
+    return;
+  }
 
-  // Map elimina coleções repetidas mantendo ``código -> nome``.
+  const currentSet = select.value;
+  const selectedGame = ($("#homeGame")?.value || gameFilter || "").toLowerCase();
+  const sourceSets = (catalogSets.length ? catalogSets : cards).filter(
+    item => !selectedGame || String(item.game || "mtg").toLowerCase() === selectedGame
+  );
+
+  select.querySelectorAll("option:not([value=''])").forEach(option => {
+    option.remove();
+  });
+
   const sets = [
     ...new Map(
-      sourceSets.map(item => [item.set_code, item.set_name])
+      sourceSets
+        .filter(item => item.set_code)
+        .map(item => [item.set_code, item.set_name || item.set_code])
     ).entries(),
   ].sort((a, b) => a[1].localeCompare(b[1]));
 
   for (const [code, name] of sets) {
     const option = document.createElement("option");
     option.value = code;
-    option.textContent = `${name} (${code.toUpperCase()})`;
-    $("#set").append(option);
+    option.textContent = `${name} (${String(code).toUpperCase()})`;
+    select.append(option);
   }
+
+  if ([...select.options].some(option => option.value === currentSet)) {
+    select.value = currentSet;
+  } else {
+    select.value = "";
+  }
+}
+
+/**
+ * Preenche o filtro de coleções e inicializa os seletores de cartas.
+ */
+/* Carrega dados de demonstração no modo estático. */
+function populateCatalog() {
+  refreshHomeSets();
 
   // O seletor é um componente separado porque também é usado pelo formulário.
   if (window.ManaBridgeCardPicker) {
     cardPicker = window.ManaBridgeCardPicker.create({
       root: $("#cardPicker"),
       source: apiUrl($("#cardPicker").dataset.source || "/api/cards"),
+      game: "mtg",
       staticCards: STATIC_MODE ? cards : null,
     });
 
     wantCardPicker = window.ManaBridgeCardPicker.create({
       root: $("#wantCardPicker"),
       source: apiUrl("/api/cards"),
+      game: "mtg",
       staticCards: STATIC_MODE ? cards : null,
     });
   }
@@ -579,16 +639,63 @@ $("#nextListings")?.addEventListener("click", () => {
   }
 });
 
-// Somente os chips da vitrine alteram o filtro de modalidade.
+// Sincroniza o seletor de jogo da busca rápida com a vitrine e as coleções.
+$("#homeGame")?.addEventListener("change", event => {
+  gameFilter = event.target.value || "";
+  document.querySelectorAll(".chips .chip[data-game]").forEach(item => {
+    const isActive = (item.dataset.game || "") === gameFilter;
+    item.classList.toggle("active", isActive);
+    item.setAttribute("aria-pressed", String(isActive));
+  });
+  refreshHomeSets();
+  loadListings();
+});
+
+// Os chips de jogo filtram Magic / Pokémon na vitrine da home.
+document.querySelectorAll(".chips .chip[data-game]").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".chips .chip[data-game]").forEach(item => {
+      const isActive = item === button;
+      item.classList.toggle("active", isActive);
+      item.setAttribute("aria-pressed", String(isActive));
+    });
+
+    gameFilter = button.dataset.game || "";
+    if ($("#homeGame")) {
+      $("#homeGame").value = gameFilter;
+    }
+    refreshHomeSets();
+    loadListings();
+  });
+});
+
+// Somente os chips de modalidade alteram o filtro de venda/troca.
 document.querySelectorAll(".chips .chip[data-mode]").forEach(button => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".chips .chip[data-mode]").forEach(item => {
-      item.classList.remove("active");
+      const isActive = item === button;
+      item.classList.toggle("active", isActive);
+      item.setAttribute("aria-pressed", String(isActive));
     });
 
-    button.classList.add("active");
     mode = button.dataset.mode || "";
     loadListings();
+  });
+});
+
+document.querySelectorAll('#listingForm input[name="game"]').forEach(radio => {
+  radio.addEventListener("change", () => {
+    if (radio.checked) {
+      cardPicker?.setGame(radio.value);
+    }
+  });
+});
+
+document.querySelectorAll('#wantForm input[name="game"]').forEach(radio => {
+  radio.addEventListener("change", () => {
+    if (radio.checked) {
+      wantCardPicker?.setGame(radio.value);
+    }
   });
 });
 
@@ -613,11 +720,15 @@ function openNewListing() {
   }
 
   editingListingId = null;
-  $("#listingForm").reset();
+  const form = $("#listingForm");
+  form.reset();
+  const initialGame = gameFilter === "pokemon" ? "pokemon" : "mtg";
+  form.elements.game.value = initialGame;
   $("#listingModalTitle").textContent = "Anunciar carta";
   $("#listingSubmitButton").textContent = "Publicar oferta";
   $("#formStatus").textContent = "";
   cardPicker?.clear();
+  cardPicker?.setGame(initialGame);
   modal.showModal();
   cardPicker?.focus();
 }
@@ -627,12 +738,16 @@ function openListingForEdit(item) {
   editingListingId = item.id;
   const form = $("#listingForm");
   form.reset();
+  const itemGame = String(item.game || "mtg").toLowerCase();
+  form.elements.game.value = itemGame;
+  cardPicker?.setGame(itemGame);
   $("#listingModalTitle").textContent = "Editar anúncio";
   $("#listingSubmitButton").textContent = "Salvar alterações";
   $("#formStatus").textContent = "";
 
   cardPicker?.select({
     id: item.card_id,
+    game: itemGame,
     name: item.name,
     set_code: item.set_code,
     set_name: item.set_name,
@@ -645,6 +760,9 @@ function openListingForEdit(item) {
     ? ""
     : (item.price_cents / 100).toFixed(2);
   form.elements.condition.value = item.condition;
+  if (form.elements.finish) {
+    form.elements.finish.value = item.finish || "normal";
+  }
   form.elements.mode.value = item.mode;
 
   accountModal.close();
@@ -686,6 +804,7 @@ $("#listingForm").addEventListener("submit", async event => {
       ? Math.round(Number(form.price) * 100)
       : null,
     condition: form.condition,
+    finish: form.finish || "normal",
     language: cardLanguage(card),
     mode: form.mode,
   };
@@ -697,6 +816,7 @@ $("#listingForm").addEventListener("submit", async event => {
       const entry = {
         ...payload,
         id: Date.now(),
+        game: card.game || form.game || "mtg",
         name: card.name,
         set_code: card.set_code,
         set_name: card.set_name,
@@ -758,21 +878,20 @@ function renderAccountListings(listings) {
     return;
   }
 
-  $("#myListings").innerHTML = entries.map(item => `
+  $("#myListings").innerHTML = entries.map(item => {
+    const extraFinish = finishText(item.finish);
+    return `
     <article class="account-item">
       <img
-        src="${esc(item.image_url)}"
+        src="${esc(cardImageUrl(item.image_url))}"
         alt="${esc(item.name)}"
-        data-card-image
-        data-card-label="${esc(item.name)}"
-        tabindex="0"
-        role="button"
+        ${item.image_url ? `data-card-image data-card-label="${esc(item.name)}" tabindex="0" role="button"` : ""}
       >
       <div>
         <h4>${esc(item.title || item.name)}</h4>
         <p class="meta">
-          ${esc(item.name)} · ${esc(String(item.set_code || "").toUpperCase())}
-          · ${esc(item.condition)} · ${money(item.price_cents)}
+          ${esc(gameShort(item.game))} · ${esc(item.name)} · ${esc(String(item.set_code || "").toUpperCase())}
+          · ${esc(item.condition)}${extraFinish ? ` · ${esc(extraFinish)}` : ""} · ${money(item.price_cents)}
         </p>
       </div>
       <div class="inline-actions">
@@ -787,7 +906,8 @@ function renderAccountListings(listings) {
         </button>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
 
   $("#myListings").querySelectorAll("[data-edit-listing]").forEach(button => {
     button.onclick = () => {
@@ -829,17 +949,14 @@ function renderWants(wants) {
   $("#wantsList").innerHTML = entries.map(item => `
     <article class="account-item">
       <img
-        src="${esc(item.image_url)}"
+        src="${esc(cardImageUrl(item.image_url))}"
         alt="${esc(item.name || item.wanted_name || "Carta")}"
-        data-card-image
-        data-card-label="${esc(item.name || item.wanted_name || "Carta")}"
-        tabindex="0"
-        role="button"
+        ${item.image_url ? `data-card-image data-card-label="${esc(item.name || item.wanted_name || "Carta")}" tabindex="0" role="button"` : ""}
       >
       <div>
         <h4>${esc(item.name)}</h4>
         <p class="meta">
-          ${esc(String(item.set_code || "").toUpperCase())}
+          ${esc(gameShort(item.game))} · ${esc(String(item.set_code || "").toUpperCase())}
           · ${esc(item.mode)}
           · idioma: ${esc(String(item.desired_language || "qualquer").toUpperCase())}
           · máximo: ${money(item.max_price_cents)}
@@ -884,17 +1001,14 @@ function renderMatches(matches) {
       aria-label="Abrir perfil de ${esc(item.display_name)}"
     >
       <img
-        src="${esc(item.image_url)}"
+        src="${esc(cardImageUrl(item.image_url))}"
         alt="${esc(item.name || item.wanted_name || "Carta")}"
-        data-card-image
-        data-card-label="${esc(item.name || item.wanted_name || "Carta")}"
-        tabindex="0"
-        role="button"
+        ${item.image_url ? `data-card-image data-card-label="${esc(item.name || item.wanted_name || "Carta")}" tabindex="0" role="button"` : ""}
       >
       <div>
         <h4>${esc(item.wanted_name || item.name)}</h4>
         <p class="meta">
-          ${esc(item.title || "Oferta compatível")}
+          ${esc(gameShort(item.game))} · ${esc(item.title || "Oferta compatível")}
           · ${esc(item.display_name)}
           · ${esc(item.city)} / ${esc(item.state)}
           · ${money(item.price_cents)}
@@ -974,9 +1088,13 @@ $("#profileForm").addEventListener("submit", async event => {
 });
 
 $("#openWantModal").onclick = () => {
-  $("#wantForm").reset();
+  const form = $("#wantForm");
+  form.reset();
+  const initialGame = gameFilter === "pokemon" ? "pokemon" : "mtg";
+  form.elements.game.value = initialGame;
   $("#wantStatus").textContent = "";
   wantCardPicker?.clear();
+  wantCardPicker?.setGame(initialGame);
   wantModal.showModal();
   wantCardPicker?.focus();
 };

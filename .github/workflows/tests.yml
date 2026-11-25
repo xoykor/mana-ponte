@@ -46,3 +46,5 @@ jobs:
           node --check cloudflare-worker/src/catalog.js
           node --check cloudflare-worker/src/listings.js
           node --check cloudflare-worker/src/wants.js
+          node --check cloudflare-worker/src/providers/mtg-scryfall.js
+          node --check cloudflare-worker/src/providers/pokemon-tcgdex.js

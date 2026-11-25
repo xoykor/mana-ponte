@@ -130,7 +130,7 @@ export async function getWants(request, url, env) {
     "SELECT " +
     "w.id,w.card_id,w.user_id,w.max_price_cents," +
     "w.desired_condition,w.desired_language,w.mode,w.created_at," +
-    "c.name,c.printed_name,c.set_code,c.set_name," +
+    "c.game,c.name,c.printed_name,c.set_code,c.set_name," +
     "c.collector_number,c.language,c.image_url " +
     "FROM wants w " +
     "JOIN cards c ON c.id=w.card_id " +
@@ -283,13 +283,14 @@ async function matchesForCard(cardId, env) {
   const result = await env.DB.prepare(
     "SELECT " +
     "l.id AS listing_id,l.card_id," +
-    "c.oracle_id,c.name,c.set_code,c.set_name,c.image_url," +
-    "l.title,l.price_cents,l.condition,l.mode,l.contact_url," +
+    "c.game,c.oracle_id,c.name,c.set_code,c.set_name,c.image_url," +
+    "l.title,l.price_cents,l.condition,l.finish,l.mode,l.contact_url," +
     "u.id AS user_id,u.username,u.display_name,u.city,u.state " +
     "FROM cards target " +
-    "JOIN cards c ON " +
+    "JOIN cards c ON c.game=target.game AND (" +
     "c.id=target.id OR " +
-    "(target.oracle_id IS NOT NULL AND c.oracle_id=target.oracle_id) " +
+    "(target.oracle_id IS NOT NULL AND c.oracle_id=target.oracle_id)" +
+    ") " +
     "JOIN listings l ON l.card_id=c.id " +
     "JOIN users u ON u.id=l.user_id " +
     "WHERE target.id=? " +
@@ -344,6 +345,7 @@ async function matchesForCurrentUser(request, env) {
     "w.desired_language," +
     "l.id AS listing_id," +
     "l.card_id," +
+    "offered.game," +
     "offered.name," +
     "offered.set_code," +
     "offered.set_name," +
@@ -352,6 +354,7 @@ async function matchesForCurrentUser(request, env) {
     "l.title," +
     "l.price_cents," +
     "l.condition," +
+    "l.finish," +
     "l.mode," +
     "l.contact_url," +
     "u.id AS user_id," +
@@ -361,9 +364,10 @@ async function matchesForCurrentUser(request, env) {
     "u.state " +
     "FROM wants w " +
     "JOIN cards wanted ON wanted.id=w.card_id " +
-    "JOIN cards offered ON " +
+    "JOIN cards offered ON offered.game=wanted.game AND (" +
     "offered.id=wanted.id OR " +
-    "(wanted.oracle_id IS NOT NULL AND offered.oracle_id=wanted.oracle_id) " +
+    "(wanted.oracle_id IS NOT NULL AND offered.oracle_id=wanted.oracle_id)" +
+    ") " +
     "JOIN listings l ON l.card_id=offered.id " +
     "JOIN users u ON u.id=l.user_id " +
     "WHERE w.user_id=? " +
@@ -486,8 +490,8 @@ export async function getPublicUser(id, env) {
     env.DB.prepare(
       "SELECT " +
       "l.id,l.card_id,l.title,l.description,l.price_cents," +
-      "l.condition,l.mode,l.created_at," +
-      "c.name,c.printed_name,c.set_code,c.set_name," +
+      "l.condition,l.finish,l.mode,l.created_at," +
+      "c.game,c.name,c.printed_name,c.set_code,c.set_name," +
       "c.language,c.image_url " +
       "FROM listings l " +
       "JOIN cards c ON c.id=l.card_id " +
@@ -499,7 +503,7 @@ export async function getPublicUser(id, env) {
       "SELECT " +
       "w.id,w.card_id,w.max_price_cents,w.desired_condition," +
       "w.desired_language,w.mode,w.created_at," +
-      "c.name,c.printed_name,c.set_code,c.set_name," +
+      "c.game,c.name,c.printed_name,c.set_code,c.set_name," +
       "c.language,c.image_url " +
       "FROM wants w " +
       "JOIN cards c ON c.id=w.card_id " +

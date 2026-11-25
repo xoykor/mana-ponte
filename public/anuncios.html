@@ -57,8 +57,8 @@
             <p class="eyebrow">Marketplace</p>
             <h1>Todos os anúncios</h1>
             <p class="lead">
-              Filtre por carta, coleção, cidade, estado ou modalidade e abra o
-              perfil do anunciante para entrar em contato.
+              Filtre cartas de Magic: The Gathering e Pokémon TCG por coleção,
+              cidade, estado, condição ou modalidade e fale direto com o anunciante.
             </p>
           </div>
           <img
@@ -71,110 +71,139 @@
           >
         </div>
 
-        <form id="listingFilters" class="search standalone-filters">
-          <label>
-            <span>Carta</span>
-            <input
-              id="listingSearch"
-              data-card-autocomplete
-              list="listingCardSuggestions"
-              placeholder="Ex.: Sol Ring"
-              autocomplete="off"
-            >
-            <datalist id="listingCardSuggestions"></datalist>
-          </label>
+        <search>
+          <form id="listingFilters" class="search standalone-filters">
+            <label>
+              <span>Jogo</span>
+              <select id="listingGame" name="game">
+                <option value="">Todos os TCGs</option>
+                <option value="mtg">Magic: The Gathering</option>
+                <option value="pokemon">Pokémon TCG</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Coleção</span>
-            <select id="listingSet">
-              <option value="">Todas</option>
-            </select>
-          </label>
+            <label>
+              <span>Carta</span>
+              <input
+                id="listingSearch"
+                name="card"
+                data-card-autocomplete
+                data-game-source="#listingGame"
+                list="listingCardSuggestions"
+                placeholder="Ex.: Sol Ring ou Charizard ex"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+              >
+              <datalist id="listingCardSuggestions"></datalist>
+            </label>
 
-          <label>
-            <span>Cidade</span>
-            <input id="listingCity" placeholder="Ex.: Natal" autocomplete="address-level2">
-          </label>
+            <label>
+              <span>Coleção</span>
+              <select id="listingSet" name="set">
+                <option value="">Todas</option>
+              </select>
+            </label>
 
-          <label>
-            <span>UF</span>
-            <select id="listingState">
-              <option value="">Brasil</option>
-            </select>
-          </label>
+            <label>
+              <span>Cidade</span>
+              <input id="listingCity" name="city" placeholder="Ex.: Natal" autocomplete="address-level2">
+            </label>
 
-          <label>
-            <span>Modalidade</span>
-            <select id="listingMode">
-              <option value="">Todas</option>
-              <option value="venda">Venda</option>
-              <option value="troca">Troca</option>
-              <option value="ambos">Venda ou troca</option>
-            </select>
-          </label>
+            <label>
+              <span>UF</span>
+              <select id="listingState" name="state">
+                <option value="">Brasil</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Idioma da impressão</span>
-            <select id="listingLanguage">
-              <option value="">Todos os idiomas</option>
-              <option value="pt">Português</option>
-              <option value="en">Inglês</option>
-              <option value="es">Espanhol</option>
-              <option value="fr">Francês</option>
-              <option value="de">Alemão</option>
-              <option value="it">Italiano</option>
-              <option value="ja">Japonês</option>
-              <option value="ko">Coreano</option>
-              <option value="ru">Russo</option>
-              <option value="zhs">Chinês simplificado</option>
-              <option value="zht">Chinês tradicional</option>
-              <option value="he">Hebraico</option>
-              <option value="la">Latim</option>
-              <option value="grc">Grego antigo</option>
-              <option value="ar">Árabe</option>
-              <option value="sa">Sânscrito</option>
-              <option value="ph">Phyrexiano</option>
-              <option value="qya">Quenya</option>
-            </select>
-          </label>
+            <label>
+              <span>Modalidade</span>
+              <select id="listingMode" name="mode">
+                <option value="">Todas</option>
+                <option value="venda">Venda</option>
+                <option value="troca">Troca</option>
+                <option value="ambos">Venda ou troca</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Condição</span>
-            <select id="listingCondition">
-              <option value="">Qualquer</option>
-              <option value="NM">NM</option>
-              <option value="SP">SP</option>
-              <option value="MP">MP</option>
-              <option value="HP">HP</option>
-              <option value="DMG">DMG</option>
-            </select>
-          </label>
+            <label>
+              <span>Idioma da impressão</span>
+              <select id="listingLanguage" name="lang">
+                <option value="">Todos os idiomas</option>
+                <option value="pt">Português</option>
+                <option value="en">Inglês</option>
+                <option value="es">Espanhol</option>
+                <option value="fr">Francês</option>
+                <option value="de">Alemão</option>
+                <option value="it">Italiano</option>
+                <option value="ja">Japonês</option>
+                <option value="ko">Coreano</option>
+                <option value="ru">Russo</option>
+                <option value="zhs">Chinês simplificado</option>
+                <option value="zht">Chinês tradicional</option>
+                <option value="he">Hebraico</option>
+                <option value="la">Latim</option>
+                <option value="grc">Grego antigo</option>
+                <option value="ar">Árabe</option>
+                <option value="sa">Sânscrito</option>
+                <option value="ph">Phyrexiano</option>
+                <option value="qya">Quenya</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Preço mínimo (R$)</span>
-            <input id="listingMinPrice" type="number" min="0" step="0.01" placeholder="0,00">
-          </label>
+            <label>
+              <span>Condição</span>
+              <select id="listingCondition" name="condition">
+                <option value="">Qualquer</option>
+                <option value="NM">NM</option>
+                <option value="SP">SP</option>
+                <option value="MP">MP</option>
+                <option value="HP">HP</option>
+                <option value="DMG">DMG</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Preço máximo (R$)</span>
-            <input id="listingMaxPrice" type="number" min="0" step="0.01" placeholder="Sem limite">
-          </label>
+            <label>
+              <span>Acabamento</span>
+              <select id="listingFinish" name="finish">
+                <option value="">Qualquer</option>
+                <option value="normal">Normal</option>
+                <option value="foil">Foil / Holo</option>
+                <option value="reverse_holo">Reverse Holo</option>
+                <option value="pokeball_foil">Poké Ball Foil</option>
+                <option value="masterball_foil">Master Ball Foil</option>
+                <option value="etched">Etched Foil</option>
+              </select>
+            </label>
 
-          <label>
-            <span>Ordenar</span>
-            <select id="listingSort">
-              <option value="recent">Mais recentes</option>
-              <option value="price_asc">Menor preço</option>
-              <option value="price_desc">Maior preço</option>
-              <option value="oldest">Mais antigos</option>
-            </select>
-          </label>
+            <label>
+              <span>Preço mínimo (R$)</span>
+              <input id="listingMinPrice" name="min_price" type="number" min="0" step="0.01" placeholder="0,00">
+            </label>
 
-          <div class="filter-actions">
-            <button class="button" type="submit">Filtrar anúncios</button>
-            <button class="secondary" id="listingClear" type="button">Limpar filtros</button>
-          </div>
-        </form>
+            <label>
+              <span>Preço máximo (R$)</span>
+              <input id="listingMaxPrice" name="max_price" type="number" min="0" step="0.01" placeholder="Sem limite">
+            </label>
+
+            <label>
+              <span>Ordenar</span>
+              <select id="listingSort" name="sort">
+                <option value="recent">Mais recentes</option>
+                <option value="price_asc">Menor preço</option>
+                <option value="price_desc">Maior preço</option>
+                <option value="oldest">Mais antigos</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button" type="submit">Filtrar anúncios</button>
+              <button class="secondary" id="listingClear" type="button">Limpar filtros</button>
+            </div>
+          </form>
+        </search>
       </section>
 
       <section class="section standalone-results">
@@ -210,7 +239,7 @@
           >
           <span>Anúncios da comunidade</span>
         </div>
-        <span>Dados e imagens: Scryfall</span>
+        <span>Dados e imagens: Scryfall &amp; TCGdex</span>
       </footer>
     </div>
 

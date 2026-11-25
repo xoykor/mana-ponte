@@ -139,7 +139,7 @@ async function handleApi(request, env) {
     }
 
     if (method === "GET" && path === "/api/sets") {
-      return await getSets(env);
+      return await getSets(url, env);
     }
 
     if (method === "GET" && path === "/api/listings") {

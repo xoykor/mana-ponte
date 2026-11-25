@@ -10,7 +10,16 @@
  */
 
 // Valores permitidos pela regra de negócio.
+export const GAMES = new Set(["mtg", "pokemon"]);
 export const CONDITIONS = new Set(["NM", "SP", "MP", "HP", "DMG"]);
+export const FINISHES = new Set([
+  "normal",
+  "foil",
+  "reverse_holo",
+  "pokeball_foil",
+  "masterball_foil",
+  "etched"
+]);
 export const LISTING_MODES = new Set(["venda", "troca", "ambos"]);
 export const WANT_MODES = new Set(["compra", "troca", "ambos"]);
 

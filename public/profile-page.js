@@ -16,6 +16,9 @@
     formatPhone,
     phoneHref,
     whatsappHref,
+    gameShort,
+    finishLabel,
+    cardImageUrl,
   } = window.ManaPontePage;
 
   const $ = selector => document.querySelector(selector);
@@ -47,19 +50,25 @@
 
     $("#profilePageListings").innerHTML = entries.map(item => {
       const name = String(item.name || "Carta");
+      const itemGame = String(item.game || "mtg").toLowerCase();
+      const extraFinish = item.finish && item.finish !== "normal"
+        ? ` · ${esc(finishLabel(item.finish))}`
+        : "";
+      const hasRealImage = Boolean(String(item.image_url || "").trim());
+
       return `
         <article class="listing">
           <img
             loading="lazy"
-            src="${esc(item.image_url)}"
+            src="${esc(cardImageUrl(item.image_url))}"
             alt="${esc(name)}"
-            data-card-image
-            data-card-label="${esc(name)}"
-            tabindex="0"
-            role="button"
+            ${hasRealImage ? `data-card-image data-card-label="${esc(name)}" tabindex="0" role="button"` : ""}
           >
           <div>
-            <span class="badge">${esc(item.mode)}</span>
+            <div class="badge-row">
+              <span class="badge game-badge game-${esc(itemGame)}">${esc(gameShort(itemGame))}</span>
+              <span class="badge">${esc(item.mode)}</span>
+            </div>
             <h3>
               <a class="listing-title-link" href="anuncio.html?id=${encodeURIComponent(item.id)}">
                 ${esc(item.title || name)}
@@ -68,8 +77,9 @@
             <p class="card-name">${esc(name)}</p>
             <div class="meta">
               ${esc(String(item.set_code || "").toUpperCase())}
-              · ${esc(item.condition)}
-              · ${esc(String(item.language || "en").toUpperCase())}            </div>
+              · ${esc(item.condition)}${extraFinish}
+              · ${esc(String(item.language || "en").toUpperCase())}
+            </div>
             <div class="price">${money(item.price_cents)}</div>
             ${item.description
               ? `<p class="description">${esc(item.description)}</p>`
@@ -92,17 +102,15 @@
     $("#profilePageWants").innerHTML = entries.map(item => `
       <article class="account-item">
         <img
-          src="${esc(item.image_url)}"
+          src="${esc(cardImageUrl(item.image_url))}"
           alt="${esc(item.name)}"
-          data-card-image
-          data-card-label="${esc(item.name)}"
-          tabindex="0"
-          role="button"
+          ${item.image_url ? `data-card-image data-card-label="${esc(item.name)}" tabindex="0" role="button"` : ""}
         >
         <div>
           <h4>${esc(item.name)}</h4>
           <p class="meta">
-            ${esc(String(item.set_code || "").toUpperCase())}
+            ${esc(gameShort(item.game))}
+            · ${esc(String(item.set_code || "").toUpperCase())}
             · ${esc(item.mode)}
             · idioma: ${esc(String(item.desired_language || "qualquer").toUpperCase())}
             · condição mínima: ${esc(item.desired_condition || "qualquer")}

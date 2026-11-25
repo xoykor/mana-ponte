@@ -26,6 +26,16 @@ Scryfall documentation:
 
 https://scryfall.com/docs/api
 
+## Pokémon TCG and TCGdex
+
+Pokémon, Pokémon Trading Card Game (Pokémon TCG), character names, card images, artwork, card frames, symbols, logos, and related trademarks are property of Nintendo, Creatures Inc., GAME FREAK inc., and/or The Pokémon Company International.
+
+My Trade Box (ManaPonte) is an unofficial fan-made community showcase and is not affiliated with, endorsed, sponsored, or approved by Nintendo, Creatures Inc., GAME FREAK inc., or The Pokémon Company International.
+
+Pokémon card metadata, identifiers, and external CDN image URLs are retrieved on demand through TCGdex:
+
+https://tcgdex.dev
+
 ## Images
 
 ManaPonte does not store card images. The database stores external image URLs.

@@ -14,6 +14,9 @@
     getJson,
     esc,
     money,
+    gameShort,
+    finishLabel,
+    cardImageUrl,
   } = window.ManaPontePage;
 
   const $ = selector => document.querySelector(selector);
@@ -28,6 +31,7 @@
   let page = 1;
   let total = 0;
   let staticListings = [];
+  let allSets = [];
 
   /* Lê anúncios de demonstração do navegador. */
   function savedListings() {
@@ -63,13 +67,27 @@
     }
   }
 
-  /* Preenche o filtro de coleções. */
+  /* Preenche o filtro de coleções conforme o jogo selecionado. */
   function populateSets(source) {
+    if (Array.isArray(source)) {
+      allSets = source;
+    }
+
     const select = $("#listingSet");
+    const previousValue = select.value;
+    const selectedGame = String($("#listingGame")?.value || "").toLowerCase();
+
+    select.querySelectorAll("option:not([value=''])").forEach(option => {
+      option.remove();
+    });
+
     const sets = [
       ...new Map(
-        source
-          .filter(item => item.set_code)
+        allSets
+          .filter(item =>
+            item.set_code &&
+            (!selectedGame || String(item.game || "mtg").toLowerCase() === selectedGame)
+          )
           .map(item => [item.set_code, item.set_name || item.set_code])
       ).entries(),
     ].sort((a, b) => a[1].localeCompare(b[1]));
@@ -80,11 +98,18 @@
       option.textContent = `${name} (${String(code).toUpperCase()})`;
       select.append(option);
     }
+
+    if ([...select.options].some(option => option.value === previousValue)) {
+      select.value = previousValue;
+    } else {
+      select.value = "";
+    }
   }
 
   /* Lê os filtros atuais. */
   function currentFilters() {
     return {
+      game: $("#listingGame")?.value || "",
       card: $("#listingSearch").value.trim(),
       set: $("#listingSet").value,
       lang: $("#listingLanguage").value,
@@ -92,6 +117,7 @@
       state: $("#listingState").value,
       mode: $("#listingMode").value,
       condition: $("#listingCondition").value,
+      finish: $("#listingFinish")?.value || "",
       min_price: $("#listingMinPrice").value,
       max_price: $("#listingMaxPrice").value,
       sort: $("#listingSort").value || "recent",
@@ -101,6 +127,12 @@
   /* Restaura filtros a partir da URL. */
   function applyFiltersFromUrl() {
     const params = new URLSearchParams(location.search);
+
+    const game = String(params.get("game") || "").toLowerCase();
+    if ($("#listingGame") && ["", "mtg", "pokemon"].includes(game)) {
+      $("#listingGame").value = game;
+      populateSets();
+    }
 
     $("#listingSearch").value = params.get("card") || "";
     $("#listingCity").value = params.get("city") || "";
@@ -131,6 +163,14 @@
     const condition = params.get("condition") || "";
     if (["", "NM", "SP", "MP", "HP", "DMG"].includes(condition)) {
       $("#listingCondition").value = condition;
+    }
+
+    const finish = String(params.get("finish") || "").toLowerCase();
+    if (
+      $("#listingFinish") &&
+      ["", "normal", "foil", "reverse_holo", "pokeball_foil", "masterball_foil", "etched"].includes(finish)
+    ) {
+      $("#listingFinish").value = finish;
     }
 
     $("#listingMinPrice").value = params.get("min_price") || "";
@@ -201,6 +241,11 @@
 
     $("#listingPageGrid").innerHTML = items.map(item => {
       const name = String(item.name || "Carta");
+      const itemGame = String(item.game || "mtg").toLowerCase();
+      const extraFinish = item.finish && item.finish !== "normal"
+        ? finishLabel(item.finish)
+        : "";
+      const hasRealImage = Boolean(String(item.image_url || "").trim());
       const profile = !STATIC_MODE && item.user_id
         ? `<a class="secondary compact profile-link" href="perfil.html?user=${encodeURIComponent(item.user_id)}">Ver perfil</a>`
         : "";
@@ -209,21 +254,22 @@
         <article class="listing">
           <img
             loading="lazy"
-            src="${esc(item.image_url)}"
+            src="${esc(cardImageUrl(item.image_url))}"
             alt="${esc(name)}"
-            data-card-image
-            data-card-label="${esc(name)}"
-            tabindex="0"
-            role="button"
+            ${hasRealImage ? `data-card-image data-card-label="${esc(name)}" tabindex="0" role="button"` : ""}
           >
           <div>
-            <span class="badge">${esc(item.mode)}</span>
+            <div class="badge-row">
+              <span class="badge game-badge game-${esc(itemGame)}">${esc(gameShort(itemGame))}</span>
+              <span class="badge">${esc(item.mode)}</span>
+            </div>
             <h3><a class="listing-title-link" href="anuncio.html?id=${encodeURIComponent(item.id)}">${esc(item.title || name)}</a></h3>
             <p class="card-name">${esc(name)}</p>
             <div class="meta">
               ${esc(String(item.set_code || "").toUpperCase())}
-              · ${esc(item.condition)}
-              · ${esc(String(item.language || "en").toUpperCase())}            </div>
+              · ${esc(item.condition)}${extraFinish ? ` · ${esc(extraFinish)}` : ""}
+              · ${esc(String(item.language || "en").toUpperCase())}
+            </div>
             <div class="price">${money(item.price_cents)}</div>
             ${item.description ? `<p class="description">${esc(item.description)}</p>` : ""}
             <div class="meta">
@@ -246,6 +292,8 @@
       if (STATIC_MODE) {
         const normalizedCard = filters.card.toLocaleLowerCase();
         const filtered = [...savedListings(), ...staticListings].filter(item =>
+          (!filters.game ||
+            String(item.game || "mtg").toLowerCase() === filters.game) &&
           (!filters.card ||
             String(item.name || "").toLocaleLowerCase().includes(normalizedCard)) &&
           (!filters.set || item.set_code === filters.set) &&
@@ -256,6 +304,7 @@
               filters.city.toLocaleLowerCase()) &&
           (!filters.state || item.state === filters.state) &&
           (!filters.condition || item.condition === filters.condition) &&
+          (!filters.finish || (item.finish || "normal") === filters.finish) &&
           (!filters.min_price ||
             (item.price_cents != null &&
               item.price_cents >= Math.round(Number(filters.min_price) * 100))) &&
@@ -326,6 +375,10 @@
     await load(1);
   }
 
+  $("#listingGame")?.addEventListener("change", () => {
+    populateSets();
+  });
+
   $("#listingFilters").addEventListener("submit", event => {
     event.preventDefault();
     syncUrlWithFilters();
@@ -335,6 +388,7 @@
   $("#listingClear").addEventListener("click", () => {
     $("#listingFilters").reset();
     $("#listingSort").value = "recent";
+    populateSets();
     syncUrlWithFilters();
     load(1);
   });

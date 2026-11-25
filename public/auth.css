@@ -142,7 +142,9 @@
     font-size: 12px;
   }
 
-  .two {
+  .two,
+  .three,
+  .game-radio-group {
     grid-template-columns: 1fr;
   }
 }

@@ -15,6 +15,8 @@
 
 import {
   CONDITIONS,
+  FINISHES,
+  GAMES,
   LISTING_MODES,
   csrfValid,
   json,
@@ -42,12 +44,14 @@ const SORT_SQL = {
 
 function addExactFilters(url, clauses, values) {
   const exactFilters = [
+    ["game", "c.game=?", v => String(v).trim().toLowerCase()],
     ["card_id", "l.card_id=?", Number],
     ["set", "c.set_code=? COLLATE NOCASE", String],
     ["lang", "c.language=? COLLATE NOCASE", String],
     ["city", "u.city=? COLLATE NOCASE", String],
     ["state", "u.state=? COLLATE NOCASE", String],
-    ["condition", "l.condition=?", String]
+    ["condition", "l.condition=?", String],
+    ["finish", "l.finish=?", v => String(v).trim().toLowerCase()]
   ];
 
   for (const [parameter, sql, convert] of exactFilters) {
@@ -60,10 +64,24 @@ function addExactFilters(url, clauses, values) {
     const value = convert(rawValue);
 
     if (
+      parameter === "game" &&
+      !GAMES.has(value)
+    ) {
+      throw new Error("Jogo inválido");
+    }
+
+    if (
       parameter === "condition" &&
       !CONDITIONS.has(value)
     ) {
       throw new Error("Condição inválida");
+    }
+
+    if (
+      parameter === "finish" &&
+      !FINISHES.has(value)
+    ) {
+      throw new Error("Acabamento inválido");
     }
 
     clauses.push(sql);
@@ -268,6 +286,12 @@ function listingInput(data, current = null) {
       : data.condition
   );
 
+  const finish = String(
+    data.finish == null
+      ? fallback.finish || "normal"
+      : data.finish
+  ).trim().toLowerCase() || "normal";
+
   const mode = String(
     data.mode == null
       ? fallback.mode || ""
@@ -289,6 +313,7 @@ function listingInput(data, current = null) {
     title,
     description,
     condition,
+    finish,
     mode,
     priceCents
   };
@@ -314,9 +339,10 @@ function validateListingInput(input) {
 
   if (
     !CONDITIONS.has(input.condition) ||
+    !FINISHES.has(input.finish) ||
     !LISTING_MODES.has(input.mode)
   ) {
-    throw new Error("Condição ou modalidade inválida");
+    throw new Error("Condição, acabamento ou modalidade inválida");
   }
 
   if (
@@ -381,10 +407,10 @@ export async function getListings(request, url, env) {
   const result = await env.DB.prepare(
     "SELECT " +
     "l.id,l.card_id,l.user_id," +
-    "c.name,c.printed_name,c.set_code,c.set_name,c.collector_number," +
+    "c.game,c.name,c.printed_name,c.set_code,c.set_name,c.collector_number," +
     "c.image_url,c.language AS language," +
     "u.username,u.display_name,u.city,u.state," +
-    "l.title,l.description,l.price_cents,l.condition,l.mode," +
+    "l.title,l.description,l.price_cents,l.condition,l.finish,l.mode," +
     "l.contact_url,l.created_at " +
     "FROM listings l " +
     "JOIN cards c ON c.id=l.card_id " +
@@ -416,8 +442,8 @@ export async function getListing(id, env) {
   const listing = await env.DB.prepare(
     "SELECT " +
     "l.id,l.card_id,l.user_id,l.title,l.description,l.price_cents," +
-    "l.condition,l.mode,l.contact_url,l.created_at," +
-    "c.name,c.printed_name,c.set_code,c.set_name,c.collector_number," +
+    "l.condition,l.finish,l.mode,l.contact_url,l.created_at," +
+    "c.game,c.name,c.printed_name,c.set_code,c.set_name,c.collector_number," +
     "c.language,c.image_url," +
     "u.username,u.display_name,u.phone,u.city,u.state " +
     "FROM listings l " +
@@ -474,8 +500,8 @@ export async function createListing(request, env) {
   const insertResult = await env.DB.prepare(
     "INSERT INTO listings(" +
     "card_id,user_id,title,description,price_cents," +
-    "condition,language,mode" +
-    ") VALUES(?,?,?,?,?,?,?,?)"
+    "condition,finish,language,mode" +
+    ") VALUES(?,?,?,?,?,?,?,?,?)"
   )
     .bind(
       input.cardId,
@@ -484,6 +510,7 @@ export async function createListing(request, env) {
       input.description,
       input.priceCents,
       input.condition,
+      input.finish,
       language,
       input.mode
     )
@@ -555,7 +582,7 @@ export async function updateListing(request, id, env) {
   await env.DB.prepare(
     "UPDATE listings SET " +
     "card_id=?,title=?,description=?,price_cents=?," +
-    "condition=?,language=?,mode=? " +
+    "condition=?,finish=?,language=?,mode=? " +
     "WHERE id=? AND user_id=?"
   )
     .bind(
@@ -564,6 +591,7 @@ export async function updateListing(request, id, env) {
       input.description,
       input.priceCents,
       input.condition,
+      input.finish,
       language,
       input.mode,
       id,

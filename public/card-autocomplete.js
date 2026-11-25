@@ -54,6 +54,13 @@
             q: query,
             limit: "30",
           });
+          const gameSelector = input.getAttribute("data-game-source");
+          const gameElement = gameSelector
+            ? document.querySelector(gameSelector)
+            : null;
+          if (gameElement && gameElement.value) {
+            params.set("game", gameElement.value);
+          }
           const response = await fetch(`${base}/api/cards?${params}`, {
             credentials: "include",
             signal: controller.signal,

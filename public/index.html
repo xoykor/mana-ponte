@@ -15,9 +15,9 @@
     <meta name="theme-color" content="#082426" media="(prefers-color-scheme: dark)">
     <meta
       name="description"
-      content="My Trade Box — encontre jogadores de Magic perto de você para comprar, vender e trocar cartas diretamente na comunidade."
+      content="My Trade Box — encontre jogadores perto de você para comprar, vender e trocar cartas de Magic: The Gathering e Pokémon TCG."
     >
-    <title>My Trade Box — Sua caixa comunitária de trocas de Magic</title>
+    <title>My Trade Box — Compra, venda e troca de Magic e Pokémon TCG</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 
     <!-- Os estilos ficam em arquivos separados para facilitar a manutenção. -->
@@ -70,8 +70,9 @@
             <p class="eyebrow">A comunidade é o melhor marketplace</p>
             <h1>A carta que falta pode estar <em>na caixa ao lado.</em></h1>
             <p class="lead">
-              Descubra quem tem o que você procura, filtre por região e combine
-              a compra ou troca diretamente com outro jogador.
+              Descubra quem tem a carta de Magic ou Pokémon que você procura,
+              filtre por região e combine a compra ou troca diretamente com
+              outro jogador.
             </p>
 
             <div class="hero-brand-showcase" aria-hidden="true">
@@ -92,74 +93,93 @@
             </div>
           </div>
 
-          <form id="searchForm" class="search">
-            <div class="search-head">
-              <span class="search-tag">Busca rápida</span>
-              <strong>Abra a caixa da sua região</strong>
-            </div>
+          <search>
+            <form id="searchForm" class="search">
+              <div class="search-head">
+                <span class="search-tag">Busca rápida</span>
+                <strong>Abra a caixa da sua região</strong>
+              </div>
 
-            <label>
-              <span>Qual carta?</span>
-              <input
-                id="search"
-                data-card-autocomplete
-                list="homeCardSuggestions"
-                placeholder="Ex.: Sol Ring"
-                autocomplete="off"
-              >
-              <datalist id="homeCardSuggestions"></datalist>
-            </label>
+              <label>
+                <span>Jogo</span>
+                <select id="homeGame" name="game">
+                  <option value="">Todos os TCGs</option>
+                  <option value="mtg">Magic: The Gathering</option>
+                  <option value="pokemon">Pokémon TCG</option>
+                </select>
+              </label>
 
-            <label>
-              <span>Coleção</span>
-              <select id="set">
-                <option value="">Todas</option>
-              </select>
-            </label>
+              <label>
+                <span>Qual carta?</span>
+                <input
+                  id="search"
+                  name="card"
+                  data-card-autocomplete
+                  data-game-source="#homeGame"
+                  list="homeCardSuggestions"
+                  placeholder="Ex.: Sol Ring ou Pikachu V"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="none"
+                  spellcheck="false"
+                >
+                <datalist id="homeCardSuggestions"></datalist>
+              </label>
 
-            <label>
-              <span>Cidade</span>
-              <input
-                id="city"
-                placeholder="Ex.: Natal"
-                autocomplete="address-level2"
-              >
-            </label>
+              <label>
+                <span>Coleção</span>
+                <select id="set" name="set">
+                  <option value="">Todas</option>
+                </select>
+              </label>
 
-            <label>
-              <span>UF</span>
-              <select id="state" data-brazil-states>
-                <option value="">Brasil</option>
-              </select>
-            </label>
+              <div class="two">
+                <label>
+                  <span>Cidade</span>
+                  <input
+                    id="city"
+                    name="city"
+                    placeholder="Ex.: Natal"
+                    autocomplete="address-level2"
+                  >
+                </label>
 
-            <label>
-              <span>Idioma da impressão</span>
-              <select id="language">
-                <option value="">Todos os idiomas</option>
-                <option value="pt">Português</option>
-                <option value="en">Inglês</option>
-                <option value="es">Espanhol</option>
-                <option value="fr">Francês</option>
-                <option value="de">Alemão</option>
-                <option value="it">Italiano</option>
-                <option value="ja">Japonês</option>
-                <option value="ko">Coreano</option>
-                <option value="ru">Russo</option>
-                <option value="zhs">Chinês simplificado</option>
-                <option value="zht">Chinês tradicional</option>
-                <option value="he">Hebraico</option>
-                <option value="la">Latim</option>
-                <option value="grc">Grego antigo</option>
-                <option value="ar">Árabe</option>
-                <option value="sa">Sânscrito</option>
-                <option value="ph">Phyrexiano</option>
-                <option value="qya">Quenya</option>
-              </select>
-            </label>
+                <label>
+                  <span>UF</span>
+                  <select id="state" name="state" data-brazil-states>
+                    <option value="">Brasil</option>
+                  </select>
+                </label>
+              </div>
 
-            <button class="button">Encontrar cartas</button>
-          </form>
+              <label>
+                <span>Idioma da impressão</span>
+                <select id="language" name="lang">
+                  <option value="">Todos os idiomas</option>
+                  <option value="pt">Português</option>
+                  <option value="en">Inglês</option>
+                  <option value="es">Espanhol</option>
+                  <option value="fr">Francês</option>
+                  <option value="de">Alemão</option>
+                  <option value="it">Italiano</option>
+                  <option value="ja">Japonês</option>
+                  <option value="ko">Coreano</option>
+                  <option value="ru">Russo</option>
+                  <option value="zhs">Chinês simplificado</option>
+                  <option value="zht">Chinês tradicional</option>
+                  <option value="he">Hebraico</option>
+                  <option value="la">Latim</option>
+                  <option value="grc">Grego antigo</option>
+                  <option value="ar">Árabe</option>
+                  <option value="sa">Sânscrito</option>
+                  <option value="ph">Phyrexiano</option>
+                  <option value="qya">Quenya</option>
+                </select>
+              </label>
+
+              <button class="button" type="submit">Encontrar cartas</button>
+            </form>
+          </search>
         </section>
       </div>
 
@@ -171,10 +191,17 @@
             <h2>Ofertas perto de você</h2>
           </div>
 
-          <div class="chips">
-            <button class="chip active" data-mode="">Todos</button>
-            <button class="chip" data-mode="venda">Venda</button>
-            <button class="chip" data-mode="troca">Troca</button>
+          <div class="filter-bar">
+            <div class="chips" role="group" aria-label="Filtrar por jogo">
+              <button type="button" class="chip active" data-game="" aria-pressed="true">Todos os jogos</button>
+              <button type="button" class="chip" data-game="mtg" aria-pressed="false">Magic</button>
+              <button type="button" class="chip" data-game="pokemon" aria-pressed="false">Pokémon</button>
+            </div>
+            <div class="chips" role="group" aria-label="Filtrar por modalidade">
+              <button type="button" class="chip active" data-mode="" aria-pressed="true">Todos</button>
+              <button type="button" class="chip" data-mode="venda" aria-pressed="false">Venda</button>
+              <button type="button" class="chip" data-mode="troca" aria-pressed="false">Troca</button>
+            </div>
           </div>
         </div>
 
@@ -226,7 +253,7 @@
           <article>
             <b>01</b>
             <h3>Cadastre</h3>
-            <p>Escolha a impressão exata no catálogo Scryfall e monte sua caixa.</p>
+            <p>Escolha a impressão exata de Magic ou Pokémon e monte sua caixa.</p>
           </article>
           <article>
             <b>02</b>
@@ -252,9 +279,9 @@
             height="22"
             loading="lazy"
           >
-          <span>Vitrine comunitária de compra, venda e troca de Magic: The Gathering</span>
+          <span>Vitrine comunitária de Magic: The Gathering e Pokémon TCG</span>
         </div>
-        <span>Dados e imagens: Scryfall</span>
+        <span>Dados e imagens: Scryfall &amp; TCGdex</span>
       </footer>
     </div>
 
@@ -279,10 +306,25 @@
           >×</button>
         </div>
 
+        <fieldset class="game-fieldset">
+          <legend>Jogo</legend>
+          <div class="game-radio-group">
+            <label class="game-radio">
+              <input type="radio" name="game" value="mtg" checked>
+              <span>Magic: The Gathering</span>
+            </label>
+            <label class="game-radio">
+              <input type="radio" name="game" value="pokemon">
+              <span>Pokémon TCG</span>
+            </label>
+          </div>
+        </fieldset>
+
         <div
           class="card-picker"
           id="cardPicker"
           data-source="/api/cards"
+          data-game="mtg"
         >
           <label for="cardSearch">Carta</label>
           <input
@@ -291,6 +333,9 @@
             type="search"
             placeholder="Digite o nome da carta…"
             autocomplete="off"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
           >
           <label for="cardLanguage">Idioma da impressão</label>
           <select id="cardLanguage" data-card-language>
@@ -327,7 +372,7 @@
           </p>
         </div>
 
-        <div class="two">
+        <div class="three">
           <label>
             Modalidade
             <select name="mode">
@@ -345,6 +390,18 @@
               <option>MP</option>
               <option>HP</option>
               <option>DMG</option>
+            </select>
+          </label>
+
+          <label>
+            Acabamento
+            <select name="finish">
+              <option value="normal">Normal</option>
+              <option value="foil">Foil / Holo</option>
+              <option value="reverse_holo">Reverse Holo</option>
+              <option value="pokeball_foil">Poké Ball Foil</option>
+              <option value="masterball_foil">Master Ball Foil</option>
+              <option value="etched">Etched Foil</option>
             </select>
           </label>
         </div>
@@ -605,7 +662,21 @@
           <button type="button" class="close" id="closeWantModal" aria-label="Fechar">×</button>
         </div>
 
-        <div class="card-picker" id="wantCardPicker">
+        <fieldset class="game-fieldset">
+          <legend>Jogo</legend>
+          <div class="game-radio-group">
+            <label class="game-radio">
+              <input type="radio" name="game" value="mtg" checked>
+              <span>Magic: The Gathering</span>
+            </label>
+            <label class="game-radio">
+              <input type="radio" name="game" value="pokemon">
+              <span>Pokémon TCG</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="card-picker" id="wantCardPicker" data-game="mtg">
           <label for="wantCardSearch">Carta</label>
           <input
             id="wantCardSearch"
@@ -613,6 +684,9 @@
             type="search"
             placeholder="Digite o nome da carta…"
             autocomplete="off"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
           >
           <label for="wantCardLanguage">Idioma da impressão</label>
           <select id="wantCardLanguage" data-card-language>

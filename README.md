@@ -1,6 +1,6 @@
 # My Trade Box
 
-My Trade Box é uma vitrine comunitária brasileira para jogadores de Magic: The Gathering encontrarem, anunciarem, venderem e trocarem cartas diretamente entre si.
+My Trade Box é uma vitrine comunitária brasileira para jogadores de **Magic: The Gathering** e **Pokémon TCG** encontrarem, anunciarem, venderem e trocarem cartas diretamente entre si.
 
 > **Nota técnica:** Os identificadores internos de infraestrutura e sessão (`mana-ponte`, D1 `manaponte`, cookie `mp_session` e `MANAPONTE_API_BASE`) foram mantidos por compatibilidade com o ambiente de produção no Cloudflare.
 
@@ -15,7 +15,7 @@ Navegador
                               |
                               +-- Cloudflare D1
                               |
-                              +-- Scryfall
+                              +-- Scryfall (Magic) & TCGdex (Pokémon)
 ```
 
 Produção:

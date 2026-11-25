@@ -17,6 +17,9 @@
     formatPhone,
     phoneHref,
     whatsappHref,
+    gameShort,
+    finishLabel,
+    cardImageUrl,
   } = window.ManaPontePage;
 
   const $ = selector => document.querySelector(selector);
@@ -49,17 +52,33 @@
     const data = await getJson(`/api/listings/${listingId}`);
     const item = data.listing;
     const cardName = String(item.name || "Carta");
+    const itemGame = String(item.game || "mtg").toLowerCase();
+    const extraFinish = item.finish && item.finish !== "normal"
+      ? ` · ${finishLabel(item.finish)}`
+      : "";
 
     document.title = `${item.title || cardName} — My Trade Box`;
-    $("#listingDetailCardImage").src = item.image_url;
-    $("#listingDetailCardImage").alt = cardName;
-    $("#listingDetailCardImage").dataset.cardLabel = cardName;
+    const art = $("#listingDetailCardImage");
+    art.src = cardImageUrl(item.image_url);
+    art.alt = cardName;
+    if (item.image_url) {
+      art.dataset.cardLabel = cardName;
+    } else {
+      art.removeAttribute("data-card-image");
+    }
+
+    const gameBadge = $("#listingDetailGame");
+    if (gameBadge) {
+      gameBadge.textContent = gameShort(itemGame);
+      gameBadge.className = `badge game-badge game-${itemGame}`;
+    }
+
     $("#listingDetailMode").textContent = item.mode;
     $("#listingDetailTitle").textContent = item.title || cardName;
     $("#listingDetailCardName").textContent = cardName;
     $("#listingDetailMeta").textContent =
       `${String(item.set_code || "").toUpperCase()} · #${item.collector_number} · ` +
-      `${String(item.language || "en").toUpperCase()} · ${item.condition}`;
+      `${String(item.language || "en").toUpperCase()} · ${item.condition}${extraFinish}`;
     $("#listingDetailPrice").textContent = money(item.price_cents);
     $("#listingDetailDescription").textContent =
       item.description || "Sem descrição adicional.";
